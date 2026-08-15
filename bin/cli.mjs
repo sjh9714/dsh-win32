@@ -134,7 +134,8 @@ function ensureBundle() {
     return
   }
   console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
-  runDshPlugin(['--profile', 'web', 'add', 'dsh-win32'])
+  // -w: the profile dir is a pnpm workspace root; pnpm 10+ refuses a bare add there.
+  runDshPlugin(['--profile', 'web', 'add', '-w', 'dsh-win32'])
 }
 
 function fix() {
@@ -145,7 +146,7 @@ function fix() {
   }
   for (const { profile, version } of broken) {
     console.log(`pinning koffi ${version} -> 3.1.2 in profile "${profile}"...`)
-    runDshPlugin(['--profile', profile, 'add', 'koffi@3.1.2', '--ignore-scripts'])
+    runDshPlugin(['--profile', profile, 'add', '-w', 'koffi@3.1.2', '--ignore-scripts'])
   }
   ok('koffi pinned; restart dsh web')
 }
@@ -200,7 +201,14 @@ async function setup(args) {
     console.error('setup: Git Bash is required for the minimal-windows preset (or pass --bash <path>)')
     process.exit(1)
   }
-  if (!args.includes('--no-bundle')) ensureBundle()
+  if (!args.includes('--no-bundle')) {
+    try {
+      ensureBundle()
+    } catch {
+      warn('bundle wiring failed — the preset still installs below; wire the bundle manually with:')
+      info('npx --yes @deepseek-ai/dsh plugin --profile web add -w dsh-win32')
+    }
+  }
   const installed = substitutePreset(PRESET_ID, bashPath)
   console.log(`installed agent preset "${PRESET_ID}" -> ${installed}`)
   console.log('it appears in the preset picker immediately (no restart needed)')
