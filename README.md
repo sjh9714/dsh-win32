@@ -4,7 +4,7 @@ First-class Windows for DeepSeek Harness.
 
 [中文](./README.zh.md) · [![ci](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml)
 
-![demo](./assets/demo.gif)
+![before and after](./assets/hero.png)
 
 | | Stock DSH on Windows | With dsh-win32 |
 |---|---|---|

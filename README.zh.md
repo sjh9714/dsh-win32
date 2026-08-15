@@ -4,7 +4,7 @@
 
 [English](./README.md) · [![ci](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml)
 
-![demo](./assets/demo.gif)
+![before and after](./assets/hero.png)
 
 | | 官方 DSH（Windows） | 装上 dsh-win32 |
 |---|---|---|

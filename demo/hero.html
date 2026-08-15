@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root{
+    --bg:#fbfbfc; --line:#e4e4e8; --ink:#1f2328; --dim:#8b8f98;
+    --user:#dbe7fd; --accent:#2f6fed; --ok:#1a7f37; --fail:#c93c37;
+    --sans:-apple-system,'Helvetica Neue',Arial,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  html,body{margin:0;width:1920px;height:800px;overflow:hidden;background:#f3f4f6;font-family:var(--sans)}
+  #wrap{position:relative;width:1920px;height:800px}
+  #title{position:absolute;top:34px;left:0;right:0;text-align:center;font-size:30px;font-weight:700;color:#3a3f47}
+  #title span{color:var(--accent)}
+  .half{position:absolute;top:100px;bottom:48px;width:860px;background:var(--bg);border:1px solid var(--line);border-radius:22px;box-shadow:0 8px 32px rgba(20,24,32,.08);padding:36px 42px;box-sizing:border-box}
+  #left{left:64px}
+  #right{right:64px;border-color:#bfe3c8;box-shadow:0 10px 40px rgba(26,127,55,.13)}
+  .tag{display:inline-block;font-size:24px;font-weight:800;letter-spacing:1.5px;border-radius:999px;padding:10px 26px}
+  #left .tag{background:#fdecec;color:var(--fail)}
+  #right .tag{background:#e7f6ec;color:var(--ok)}
+  .sub{display:inline-block;margin-left:16px;font-size:22px;color:var(--dim)}
+  .chip{margin-top:30px;width:fit-content;font-size:20px;color:#555;background:#fff;border:1px solid var(--line);border-radius:999px;padding:9px 20px}
+  .chip b{color:var(--accent)}
+  .card{margin-top:24px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .chead{font-family:var(--mono);font-size:21px;color:#555}
+  .chead .tname{color:var(--accent);font-weight:600}
+  .cbody{margin-top:12px;font-family:var(--mono);font-size:23px;line-height:1.5;white-space:pre-wrap}
+  .ok{color:var(--ok);font-weight:700}
+  .fail{color:var(--fail);font-weight:700}
+  .x{color:var(--fail)} .v{color:var(--ok)}
+  .note{margin-top:26px;font-size:23px;line-height:1.5;color:#333}
+  #mid{position:absolute;left:0;right:0;top:400px;text-align:center;font-size:44px;color:#c2c7cf;font-weight:300}
+</style>
+<div id="wrap">
+  <div id="title"><span>dsh-win32</span> · the Minimal preset, unlocked on Windows</div>
+
+  <div class="half" id="left">
+    <span class="tag">BEFORE</span><span class="sub">stock DSH on Windows</span>
+    <div class="chip">Agent preset · <b>极简模式 (minimal)</b></div>
+    <div class="card">
+      <div class="chead"><span class="x">✕</span> <span class="tname">bash</span> MARK=win42</div>
+      <div class="cbody"><span class="fail">Error: terminal inspection is
+unsupported on platform win32</span></div>
+    </div>
+    <div class="note" style="color:var(--dim)">The persistent shell never starts.
+Minimal mode is unusable.</div>
+  </div>
+
+  <div id="mid">→</div>
+
+  <div class="half" id="right">
+    <span class="tag">AFTER</span><span class="sub">dsh plugin add dsh-win32</span>
+    <div class="chip">Agent preset · <b>Minimal (Windows)</b></div>
+    <div class="card">
+      <div class="chead"><span class="v">✓</span> <span class="tname">bash</span> MARK=win42</div>
+      <div class="cbody"><span class="ok">exit 0</span></div>
+    </div>
+    <div class="card">
+      <div class="chead"><span class="v">✓</span> <span class="tname">bash</span> echo persist:$MARK:$(pwd)</div>
+      <div class="cbody"><span class="ok">persist:win42:/c/work/demo</span></div>
+    </div>
+    <div class="note"><b>State survives across calls.</b> Persistent Git Bash, on Windows.</div>
+  </div>
+</div>
+<script>
+  window.DURATION = 0
+  window.seek = () => {}
+  window.ready = document.fonts.ready
+</script>
