@@ -1,3 +1,5 @@
 research/
+node_modules/
+lib/
 __pycache__/
 .DS_Store

@@ -1,0 +1,53 @@
+{
+  "name": "dsh-windows",
+  "version": "0.1.0",
+  "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | 让 DeepSeek Harness 在 Windows 上成为一等公民",
+  "type": "module",
+  "license": "MIT",
+  "repository": "github:sjh9714/dsh-windows",
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "windows"],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "bin": {
+    "dsh-windows": "bin/cli.mjs"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "preset",
+    "cordis.patch.yml",
+    "README.zh.md"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "vitest run",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-subprocess-local": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-subprocess": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-subprocess-local": "0.1.0-rc.6",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

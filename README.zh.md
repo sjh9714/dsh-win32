@@ -1,34 +1,46 @@
-# dsh-measured
+# dsh-windows
 
-DeepSeek Harness 行为实测系列。不凭感觉，只看数据。
+让 DeepSeek Harness 在 Windows 上成为一等公民。
 
-[English](./README.md)
+[English](./README.md) · [![ci](https://github.com/sjh9714/dsh-windows/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-windows/actions/workflows/ci.yml)
 
-DSH 生态才三天，各种说法已经满天飞。极简模式更聪明、缓存是黑魔法、Windows 是二等公民。这个仓库把这些说法放到真实系统上实测，公开数据，并附上脚本，让你能在自己机器上复现每一个数字。
-
-## 实测列表
-
-| # | 问题 | 结论 |
+| | 官方 DSH（Windows） | 装上 dsh-windows |
 |---|---|---|
-| [001](./measurements/001-prefix-cache/) | 官方 DSH 真的吃满了 DeepSeek 的前缀缓存吗？ | 会话第一次请求之后命中率 **97.3%**。你不需要任何缓存插件。 |
+| 极简模式 | 无法使用。持久 shell 一启动就抛 `terminal inspection is unsupported on platform win32` | **可用。真正的持久 Git Bash，状态跨调用保留** |
+| 安装深坑 | koffi 崩溃链、PS 5.1 崩溃循环、localhost 403、System32 假 bash | 一条 `doctor` 命令逐项指出问题和修法 |
+| 启动 | 每天早上去 GitHub 找 npx 命令 | `npx dsh-windows setup`（可选桌面快捷方式） |
 
-## 计划中
+## 为什么做这个
 
-| # | 问题 | 状态 |
-|---|---|---|
-| 002 | Windows vs Linux。"DSH 只有在 Linux 下才能发挥真实实力"这一说法是否成立？ | 排队中 |
-| 003 | Minimal vs Standard 首请求锚定。对 dsh-anchored-standard 结论的独立复现。 | 排队中 |
-| 004 | standard 会话开局的 8.4k token 前缀里到底装了什么？ | 排队中 |
-| 005 | 一次 compaction 对缓存命中率和账单的影响有多大？ | 排队中 |
+社区反复实测说 DeepSeek 模型在 DSH 的极简模式下表现最好。但在 Windows 上，极简模式根本跑不起来：它的持久 bash 需要 PTY，而官方 subprocess 运行时在 win32 上解析平台进程探测器时直接抛错，连 node-pty 都没碰到。所有 Windows 用户都被挡在模型对齐得最好的那个模式之外。
 
-想让某个说法被实测？[开一个 issue](../../issues)，附上说法和出处。
+dsh-windows 用三个部分补上这个缺口。
 
-## 原则
+1. **Windows 版 subprocess 运行时。** 与官方运行时完全一致，只补上缺失的 win32 ProcessInspector（进程树与身份用 CIM，信号用 taskkill）。通过 bundle patch 仅在 win32 上替换，其他平台原样保留官方实现。
+2. **`minimal-windows` 预设。** 忠实复刻官方极简模式，唯一改动是把 PTY shell 换成你机器上的 Git Bash。同样的完整 persona、同样的双工具、同样不做压缩。
+3. **doctor 体检。** 覆盖社区踩过的坑：koffi 3.1.3/3.1.4 损坏预编译（安装失败、目录选择器崩溃、会话保存闪退）、缺 PowerShell 7（5.1 回退在沙箱里 0xC0000142 崩溃循环）、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash。
 
-- 每个数字都来自对真实系统的全新运行，不来自论文或感觉。
-- 每个实测都附带脚本、原始数据和局限性说明。
-- 阴性结果和无聊结果也发布。001 就是个无聊结果。官方实现已经足够好，这直接杀死了一整类插件点子，在动手做之前知道这一点很值钱。
+## 安装
+
+```sh
+dsh plugin --profile web add dsh-windows   # 接入运行时 bundle
+npx dsh-windows setup                      # 安装预设 + 输出体检报告
+npx dsh-windows setup --shortcut           # 同上，外加桌面快捷方式
+```
+
+预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
+
+## 实证
+
+- CI 跑在真实 `windows-latest` 上：构建运行时、经它拉起持久 Git Bash PTY、验证状态跨写入保留（第一次 `STATE=x`，第二次 `echo $STATE`）。官方运行时在同一任务上必然失败，因为探测器缺口就在启动路径上。
+- 单元测试覆盖进程树排序、PID 复用成环、身份匹配、信号映射。
+
+## 诚实的限制（v0.1）
+
+- Windows 没有前台进程组概念，持久 shell 里长命令的中断能力降级。v0.2 计划用 Ctrl-C 注入实现。
+- Windows ACL 受限令牌沙箱下的行为尚未验证（MSYS 系 shell 在其中已知困难）。如果 `workspace-write` 下 shell 起不来，暂用 `danger-full-access`，等 v0.2。欢迎反馈。
+- 基于 DSH `0.1.0-rc.6` 开发。DSH 是开发者预览版，官方已声明会有破坏性变更。版本锁定，每次 rc 更新快速跟进。
 
 ## License
 
-MIT
+MIT。预设组合复刻自官方极简模式（MIT）并注明出处。踩坑清单提炼自 DSH 官方讨论区的社区报告。

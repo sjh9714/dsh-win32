@@ -1,0 +1,12 @@
+# dsh-windows bundle patch.
+#
+# On win32 the stock local subprocess runtime cannot spawn PTYs (its platform
+# process inspector throws), which kills the persistent shell and the Minimal
+# preset. Swap in the Windows-aware runtime on win32 only; every other
+# platform keeps the stock row.
+- id: subprocess
+  disabled: !!js process.platform === 'win32'
+- insert:
+    - id: subprocess-windows
+      name: 'dsh-windows'
+      disabled: !!js process.platform !== 'win32'

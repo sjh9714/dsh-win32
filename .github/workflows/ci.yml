@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: npm test
+      - name: persistent PTY smoke (the flagship claim, on the real OS)
+        run: node scripts/pty-smoke.mjs
+      - name: doctor + setup smoke
+        shell: bash
+        run: |
+          node bin/cli.mjs doctor
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            node bin/cli.mjs setup
+            grep -q 'bash.exe' "$USERPROFILE/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
+          else
+            node bin/cli.mjs setup --bash /bin/bash
+            grep -q "shellPath: '/bin/bash'" "$HOME/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
+          fi
