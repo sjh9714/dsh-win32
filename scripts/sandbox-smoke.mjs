@@ -98,7 +98,10 @@ try {
   } else {
     console.error(`FAIL: marker ${expected} not seen. last output:\n${text.slice(-1500)}`)
   }
-  await ctx.terminals.kill(agent, spawned.sessionId)
+  // Cleanup problems after a proven round-trip are logged, never a verdict.
+  await ctx.terminals.kill(agent, spawned.sessionId).catch(error => {
+    console.log(`note: terminal cleanup complained after the verdict: ${String(error)}`)
+  })
 } catch (error) {
   console.error(`FAIL: ${String(error && error.stack || error)}`)
 } finally {

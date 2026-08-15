@@ -19,8 +19,9 @@
 dsh-win32 用三个部分补上这个缺口。
 
 1. **Windows 版 subprocess 运行时。** 与官方运行时完全一致，只补上缺失的 win32 ProcessInspector（进程树与身份用 CIM，信号用 taskkill）。通过 bundle patch 仅在 win32 上替换，其他平台原样保留官方实现。
-2. **`minimal-windows` 预设。** 忠实复刻官方极简模式，唯一改动是把 PTY shell 换成你机器上的 Git Bash。同样的完整 persona、同样的双工具、同样不做压缩。
-3. **doctor 体检。** 覆盖社区踩过的坑：koffi 3.1.3/3.1.4 损坏预编译（安装失败、目录选择器崩溃、会话保存闪退）、缺 PowerShell 7（5.1 回退在沙箱里 0xC0000142 崩溃循环）、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash。
+2. **`minimal-windows` 预设。** 忠实复刻官方极简模式，唯一改动是把 PTY shell 换成你机器上的 Git Bash。同样的完整 persona、同样的双工具、同样不做压缩。v0.4 新增 `minimal-windows-sandboxed`：基于 busybox-w32 ash 的变体，**不出 `workspace-write` ACL 沙箱**（`npx dsh-win32 setup --sandboxed`，经确认后下载 busybox）——windows-latest CI 实测，受限令牌下活下来的第一个持久 shell。
+3. **旧编码文件系统读取器（`dsh-win32/fs`）。** 官方 DSH 对 GBK/UTF-16 文件直接拒读（`FS_NOT_TEXT`），Agent 打不开中文旧项目。两个预设都挂载了这个读取器：读取路径上自动嗅探并解码 GBK 和 UTF-16。写入保持 UTF-8，编辑旧编码文件会转成 UTF-8——刻意为之，如实写明。
+4. **doctor 体检。** 覆盖社区踩过的坑：koffi 3.1.3/3.1.4 损坏预编译（安装失败、目录选择器崩溃、会话保存闪退）、缺 PowerShell 7（5.1 回退在沙箱里 0xC0000142 崩溃循环）、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash。
 
 ## 安装
 
@@ -46,10 +47,11 @@ npx dsh-win32 setup --shortcut   # 同上，外加桌面快捷方式
 - CI 跑在真实 `windows-latest` 上：构建运行时、经它拉起持久 Git Bash PTY、验证状态跨写入保留（第一次 `STATE=x`，第二次 `echo $STATE`）。官方运行时在同一任务上必然失败，因为探测器缺口就在启动路径上。
 - 单元测试覆盖进程树排序、PID 复用成环、身份匹配、信号映射。
 
-## 诚实的限制（v0.2）
+## 诚实的限制（v0.4）
 
 - 长命令中断已通过 Ctrl-C 注入实现（SIGINT/SIGTSTP 作为 PTY 输入，ConPTY 惯例）。对前台进程的 SIGTERM/SIGKILL 在 Windows 上仍不支持，并如实报错。
-- 已实测而非猜测：在 `workspace-write` 的 ACL 受限令牌下，MSYS bash 启动即死（`cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022`，随后 `couldn't create signal pipe, Win32 error 5`）。因此 minimal-windows 预设目前需要 `danger-full-access`。对照组（danger-full-access）在 windows-latest CI 上跑通了完整 terminal-bash 栈，该失败签名由回归任务持续监视。非 Cygwin shell 的替代方案在调研中。
+- MSYS bash 在 `workspace-write` 受限令牌下仍然启动即死（实测签名 `TokenDefaultDacl, 0xC0000022`），所以 Git Bash 预设需要 `danger-full-access`。busybox 变体（`minimal-windows-sandboxed`）是沙箱内的答案；代价是 ash 而非 bash（没有数组、没有 `[[ ]]`）。
+- 旧代码页原生工具的 PTY 输出无法在插件层重新解码：node-pty 在任何 DSH 代码运行之前就按 UTF-8 解码，且在 Windows 上拒绝编码覆盖。Git Bash 和 busybox 默认 UTF-8，随附预设不受影响。
 - 基于 DSH `0.1.0-rc.6` 开发。DSH 是开发者预览版，官方已声明会有破坏性变更。版本锁定，每次 rc 更新快速跟进。
 
 ## License

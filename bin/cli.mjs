@@ -150,15 +150,31 @@ function fix() {
   ok('koffi pinned; restart dsh web')
 }
 
-function substitutePreset(bashPath) {
-  const targetDir = join(DSH_HOME, '.agent-presets', PRESET_ID)
+function substitutePreset(presetId, shellPath) {
+  const sourceDir = join(dirname(PRESET_SRC), presetId)
+  const targetDir = join(DSH_HOME, '.agent-presets', presetId)
   mkdirSync(targetDir, { recursive: true })
-  const forwardSlashes = bashPath.replaceAll('\\', '/')
-  const roster = readFileSync(join(PRESET_SRC, 'agent.cordis.yml'), 'utf8')
+  const forwardSlashes = shellPath.replaceAll('\\', '/')
+  const roster = readFileSync(join(sourceDir, 'agent.cordis.yml'), 'utf8')
     .replaceAll('__DSH_WINDOWS_BASH__', forwardSlashes)
   writeFileSync(join(targetDir, 'agent.cordis.yml'), roster)
-  writeFileSync(join(targetDir, 'preset.yml'), readFileSync(join(PRESET_SRC, 'preset.yml'), 'utf8'))
+  writeFileSync(join(targetDir, 'preset.yml'), readFileSync(join(sourceDir, 'preset.yml'), 'utf8'))
   return targetDir
+}
+
+const BUSYBOX_URL = 'https://frippery.org/files/busybox/busybox64.exe'
+
+/** busybox-w32 is GPLv2 and therefore never bundled; fetched on explicit consent. */
+async function ensureBusybox() {
+  const target = join(DSH_HOME, 'dsh-win32', 'busybox64.exe')
+  if (existsSync(target)) return target
+  console.log(`downloading busybox-w32 (GPLv2, single executable) from ${BUSYBOX_URL}`)
+  console.log('project: https://frippery.org/busybox — not bundled with dsh-win32, fetched on demand')
+  mkdirSync(dirname(target), { recursive: true })
+  const response = await fetch(BUSYBOX_URL)
+  if (!response.ok) throw new Error(`busybox download failed: HTTP ${response.status}`)
+  writeFileSync(target, Buffer.from(await response.arrayBuffer()))
+  return target
 }
 
 function createShortcut() {
@@ -173,7 +189,7 @@ function createShortcut() {
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true })
 }
 
-function setup(args) {
+async function setup(args) {
   const bashFlagIndex = args.indexOf('--bash')
   const explicitBash = bashFlagIndex !== -1 ? args[bashFlagIndex + 1] : undefined
   const { gitBash } = doctor()
@@ -185,9 +201,21 @@ function setup(args) {
     process.exit(1)
   }
   if (!args.includes('--no-bundle')) ensureBundle()
-  const installed = substitutePreset(bashPath)
+  const installed = substitutePreset(PRESET_ID, bashPath)
   console.log(`installed agent preset "${PRESET_ID}" -> ${installed}`)
   console.log('it appears in the preset picker immediately (no restart needed)')
+
+  if (args.includes('--sandboxed')) {
+    const busyboxFlag = args.indexOf('--busybox')
+    const busybox = busyboxFlag !== -1 ? args[busyboxFlag + 1] : (WIN ? await ensureBusybox() : undefined)
+    if (busybox === undefined) {
+      console.error('setup: --sandboxed needs Windows (auto-download) or an explicit --busybox <path>')
+      process.exit(1)
+    }
+    const sandboxed = substitutePreset('minimal-windows-sandboxed', busybox)
+    console.log(`installed agent preset "minimal-windows-sandboxed" -> ${sandboxed}`)
+    console.log('this variant stays inside the workspace-write sandbox (busybox ash, measured on CI)')
+  }
 
   if (args.includes('--shortcut')) {
     if (!WIN) {
@@ -200,10 +228,10 @@ function setup(args) {
 }
 
 const [, , command, ...rest] = process.argv
-if (command === 'setup') setup(rest)
+if (command === 'setup') await setup(rest)
 else if (command === 'fix') fix()
 else if (command === 'doctor' || command === undefined) doctor()
 else {
-  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-win32 [doctor|setup|fix] [--bash <path>] [--shortcut] [--no-bundle]`)
+  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-win32 [doctor|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
   process.exit(1)
 }

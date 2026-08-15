@@ -1,13 +1,13 @@
-# The `minimal-windows` agent preset: the official Minimal composition,
-# runnable on Windows.
+# The `minimal-windows-sandboxed` agent preset: Minimal on Windows that
+# STAYS inside the workspace-write ACL sandbox.
 #
-# Faithful to the shipped `minimal` preset (same complete persona, same two
-# tools, no compaction) with exactly one change: the persistent PTY shell is
-# Git Bash instead of /bin/bash. Requires the dsh-windows bundle (it supplies
-# the Windows process inspector the PTY path needs).
+# MSYS bash dies under the WRITE_RESTRICTED token (cygheap TokenDefaultDacl
+# 0xC0000022), so the Git Bash variant needs danger-full-access. busybox-w32
+# ash has no cygheap and survives the restricted token — measured on
+# windows-latest CI. Trade-off: ash, not bash (no arrays, no [[ ]]).
 #
-# `__DSH_WINDOWS_BASH__` is substituted with the detected Git Bash path by
-# `npx dsh-windows setup`.
+# `__DSH_WINDOWS_BASH__` is substituted with the busybox path by
+# `npx dsh-win32 setup --sandboxed` (downloads busybox-w32, GPLv2, on consent).
 
 - id: persona
   name: '@deepseek-ai/dsh-persona'
@@ -30,7 +30,7 @@
       config:
         timeoutMs: 300000
         shellPath: '__DSH_WINDOWS_BASH__'
-        shellArgs: ['--noprofile', '--norc', '-i']
+        shellArgs: ['sh', '-i']
 
     - id: persistent-bash
       name: '@deepseek-ai/dsh-tool-bash-persistent'
