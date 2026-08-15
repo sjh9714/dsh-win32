@@ -34,3 +34,27 @@ jobs:
             node bin/cli.mjs setup --bash /bin/bash --no-bundle
             grep -q "shellPath: '/bin/bash'" "$HOME/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
           fi
+
+  sandbox-experiment:
+    # First-ever exercise of the win32 sandboxed persistent-shell path
+    # (core CI excludes terminal-bash and sandbox-local on win32).
+    # Experimental until proven: does not gate the main matrix.
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - name: sandboxed PTY (danger-full-access control)
+        timeout-minutes: 6
+        run: node scripts/sandbox-smoke.mjs
+        env:
+          SANDBOX_MODE: danger-full-access
+      - name: sandboxed PTY (workspace-write, ACL restricted token)
+        timeout-minutes: 6
+        run: node scripts/sandbox-smoke.mjs
+        env:
+          SANDBOX_MODE: workspace-write
