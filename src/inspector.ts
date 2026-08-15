@@ -21,6 +21,9 @@ export interface ProcessIdentity {
 /** OS boundary, injectable for deterministic tests. */
 export interface WindowsInspectorInternals {
   exec(file: string, args: string[]): string
+  /** Zero-signal liveness probe; throws when the pid does not exist. */
+  kill(pid: number, signal: 0): void
+  now(): number
 }
 
 const DEFAULT_INTERNALS: WindowsInspectorInternals = {
@@ -29,10 +32,17 @@ const DEFAULT_INTERNALS: WindowsInspectorInternals = {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   }),
+  kill: (pid, signal) => { process.kill(pid, signal) },
+  now: () => Date.now(),
 }
 
+/** One CIM enumeration costs ~900ms on a busy box (#8); terminate polls every
+ * 25ms per member. A short TTL turns N-per-tick execs into at most one, and
+ * staleness only errs safe (a just-exited pid costs one extra tick). */
+const SNAPSHOT_TTL_MS = 200
+
 // Culture-invariant snapshot: pid, ppid, creation time as FILETIME int64.
-const LIST_COMMAND = '$ErrorActionPreference="Stop"; Get-CimInstance Win32_Process | ForEach-Object { '
+const LIST_COMMAND = '$ErrorActionPreference="Stop"; Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CreationDate | ForEach-Object { '
   + '"$($_.ProcessId)|$($_.ParentProcessId)|$(if ($_.CreationDate) { [long]$_.CreationDate.ToFileTime() } else { 0 })" }'
 
 interface ProcessRow extends ProcessIdentity {
@@ -40,9 +50,13 @@ interface ProcessRow extends ProcessIdentity {
 }
 
 export class WindowsProcessInspector {
+  private cached: { at: number, rows: ProcessRow[] } | undefined
+
   constructor(private readonly internals: WindowsInspectorInternals = DEFAULT_INTERNALS) {}
 
   private snapshot(): ProcessRow[] {
+    const now = this.internals.now()
+    if (this.cached !== undefined && now - this.cached.at < SNAPSHOT_TTL_MS) return this.cached.rows
     let output: string
     try {
       output = this.internals.exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', LIST_COMMAND])
@@ -58,6 +72,7 @@ export class WindowsProcessInspector {
       if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue
       rows.push({ pid, ppid, started: parts[2] })
     }
+    this.cached = { at: now, rows }
     return rows
   }
 
@@ -92,6 +107,14 @@ export class WindowsProcessInspector {
   }
 
   isAlive(identity: ProcessIdentity): boolean {
+    // kill(pid, 0) is necessary-but-not-sufficient: it short-circuits only the
+    // dead case (~0.002ms vs ~900ms, #8); a live pid still needs the
+    // start-identity check against the (TTL-cached) snapshot for pid recycling.
+    try {
+      this.internals.kill(identity.pid, 0)
+    } catch {
+      return false
+    }
     return this.snapshot().some(row => row.pid === identity.pid && row.started === identity.started)
   }
 

@@ -28,7 +28,7 @@ Zero runtime dependencies beyond `node:child_process`. No koffi, no native code.
 | `isStdinWaiting(pgid)` | returns `false` | honest degradation |
 | `processSession(sessionId)` | returns `[]` | honest degradation: no POSIX sessions |
 
-The degradations only disable foreground inspection niceties. Mid-command cancel (the SIGINT path in `terminal-bash`'s `interruptOnce`) is restored by `terminal-wrap.ts`: SIGINT/SIGTSTP are delivered as `\x03`/`\x1a` PTY input, which MSYS bash and busybox ash forward to the foreground job. SIGTERM/SIGKILL against a foreground process keep the stock throwing behavior rather than pretending delivery.
+The degradations are not free (credit: [#7](https://github.com/sjh9714/dsh-win32/issues/7)): with `foregroundPgid` undefined, terminal-bash's readiness check loses its shell-vs-child discriminator (`undefined === undefined` passes silently), leaving prompt markers and silence as the only completion signals. A real win32 mapping exists — ConPTY's console process list (`getConsoleProcessList`, already bound in node-pty, ~81ms measured via a helper process) — and is the tracked follow-up. Mid-command cancel (the SIGINT path in `terminal-bash`'s `interruptOnce`) is restored by `terminal-wrap.ts`: SIGINT/SIGTSTP are delivered as `\x03`/`\x1a` PTY input, which MSYS bash and busybox ash forward to the foreground job. SIGTERM/SIGKILL against a foreground process keep the stock throwing behavior rather than pretending delivery.
 
 ## Evidence (all public, all reproducible)
 
@@ -43,7 +43,7 @@ Minimal-diff shape: a `Win32ProcessInspector` next to the Linux/Mac ones and one
 
 ## Known limits worth carrying over
 
-- CIM snapshot costs one `powershell.exe` invocation per terminal spawn and per liveness sweep. Fine at session cadence; not a hot-path primitive.
+- CIM snapshot costs one `powershell.exe` invocation (~900ms on a busy box). As of v0.6.0 the snapshot is TTL-cached (200ms) and `isAlive` short-circuits dead pids via `kill(pid, 0)`, so terminate's 25ms poll loop no longer burns its grace period on measurement ([#8](https://github.com/sjh9714/dsh-win32/issues/8)).
 - Directly-spawned console apps can survive a ConPTY kill on Windows; a `taskkill /T /F` fallback after a failed `terminate()` is advisable (we ship this as of v0.5).
 
 ## License

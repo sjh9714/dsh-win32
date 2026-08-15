@@ -37,8 +37,12 @@ function findGitBash() {
   const roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Programs')]
   for (const root of roots) {
     if (root === undefined) continue
-    const candidate = join(root, 'Git', 'bin', 'bash.exe')
-    if (existsSync(candidate)) return candidate
+    // usr\bin is the real shell; bin\bash.exe is a 47KB wrapper that respawns
+    // it, leaving the PTY pid pointing at the wrapper (#7's SIGKILL-guard trap).
+    for (const rel of [['Git', 'usr', 'bin', 'bash.exe'], ['Git', 'bin', 'bash.exe']]) {
+      const candidate = join(root, ...rel)
+      if (existsSync(candidate)) return candidate
+    }
   }
   const located = tryExec('where.exe', ['bash'])
   for (const line of (located ?? '').split(/\r?\n/)) {

@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { WindowsProcessInspector } from './inspector.ts'
 
-function fakeInspector(lines: string[], execLog: string[][] = []) {
+function fakeInspector(lines: string[], execLog: string[][] = [], options: { deadPids?: number[], clock?: { t: number } } = {}) {
+  const clock = options.clock ?? { t: 0 }
   return new WindowsProcessInspector({
     exec(file, args) {
       execLog.push([file, ...args])
       if (file === 'taskkill') return ''
       return lines.join('\r\n')
     },
+    kill(pid) {
+      if ((options.deadPids ?? []).includes(pid)) throw new Error('ESRCH')
+    },
+    now: () => (clock.t += 300),
   })
 }
 
@@ -60,9 +65,35 @@ describe('WindowsProcessInspector', () => {
     expect(log).toContainEqual(['taskkill', '/PID', '42', '/F'])
   })
 
+  it('caches the snapshot within the TTL (one exec per tick, #8)', () => {
+    const log: string[][] = []
+    const clock = { t: 0 }
+    const inspector = new WindowsProcessInspector({
+      exec(file, args) { log.push([file, ...args]); return SNAPSHOT.join('\r\n') },
+      kill() {},
+      now: () => clock.t,
+    })
+    inspector.isAlive({ pid: 200, started: '222' })
+    inspector.isAlive({ pid: 300, started: '333' })
+    inspector.processTree(100)
+    expect(log.length).toBe(1)
+    clock.t += 1000
+    inspector.processTree(100)
+    expect(log.length).toBe(2)
+  })
+
+  it('short-circuits isAlive for dead pids without any exec (#8)', () => {
+    const log: string[][] = []
+    const inspector = fakeInspector(SNAPSHOT, log, { deadPids: [200] })
+    expect(inspector.isAlive({ pid: 200, started: '222' })).toBe(false)
+    expect(log.length).toBe(0)
+  })
+
   it('swallows taskkill failures on already-exited targets', () => {
     const inspector = new WindowsProcessInspector({
       exec() { throw new Error('not found') },
+      kill() {},
+      now: () => Date.now(),
     })
     expect(() => inspector.signalProcess({ pid: 1, started: '1' }, 'SIGKILL')).not.toThrow()
     expect(inspector.processTree(1)).toEqual([])

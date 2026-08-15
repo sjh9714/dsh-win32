@@ -26,7 +26,7 @@ function findBash() {
   if (process.platform !== 'win32') return '/bin/bash'
   for (const root of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]) {
     if (root === undefined) continue
-    const candidate = join(root, 'Git', 'bin', 'bash.exe')
+    const candidate = join(root, 'Git', 'usr', 'bin', 'bash.exe')
     if (existsSync(candidate)) return candidate
   }
   throw new Error('Git Bash not found; set SMOKE_BASH')
