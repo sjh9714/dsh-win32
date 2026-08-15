@@ -11,9 +11,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { WindowsProcessInspector } from './inspector.ts'
+import { wrapTerminalHandle } from './terminal-wrap.ts'
 
 export { WindowsProcessInspector } from './inspector.ts'
 export type { ProcessIdentity, WindowsInspectorInternals } from './inspector.ts'
+export { wrapTerminalHandle } from './terminal-wrap.ts'
 
 export const name = 'subprocess-windows'
 
@@ -25,5 +27,12 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
       // resolves an inspector lazily per PTY spawn and throws on win32.
       this.terminalInspector = new WindowsProcessInspector() as typeof this.terminalInspector
     }
+  }
+
+  override async spawnTerminal(spec: Parameters<LocalSubprocessRuntime['spawnTerminal']>[0]): ReturnType<LocalSubprocessRuntime['spawnTerminal']> {
+    const handle = await super.spawnTerminal(spec)
+    // On win32 the foreground-group signal path cannot exist; deliver
+    // keyboard-equivalent signals as PTY input instead (Ctrl-C injection).
+    return process.platform === 'win32' ? wrapTerminalHandle(handle) : handle
   }
 }

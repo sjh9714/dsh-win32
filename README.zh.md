@@ -37,9 +37,9 @@ npx dsh-win32 setup --shortcut           # 同上，外加桌面快捷方式
 - CI 跑在真实 `windows-latest` 上：构建运行时、经它拉起持久 Git Bash PTY、验证状态跨写入保留（第一次 `STATE=x`，第二次 `echo $STATE`）。官方运行时在同一任务上必然失败，因为探测器缺口就在启动路径上。
 - 单元测试覆盖进程树排序、PID 复用成环、身份匹配、信号映射。
 
-## 诚实的限制（v0.1）
+## 诚实的限制（v0.2）
 
-- Windows 没有前台进程组概念，持久 shell 里长命令的中断能力降级。v0.2 计划用 Ctrl-C 注入实现。
+- 长命令中断已通过 Ctrl-C 注入实现（SIGINT/SIGTSTP 作为 PTY 输入，ConPTY 惯例）。对前台进程的 SIGTERM/SIGKILL 在 Windows 上仍不支持，并如实报错。
 - Windows ACL 受限令牌沙箱下的行为尚未验证（MSYS 系 shell 在其中已知困难）。如果 `workspace-write` 下 shell 起不来，暂用 `danger-full-access`，等 v0.2。欢迎反馈。
 - 基于 DSH `0.1.0-rc.6` 开发。DSH 是开发者预览版，官方已声明会有破坏性变更。版本锁定，每次 rc 更新快速跟进。
 

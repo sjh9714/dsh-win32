@@ -37,9 +37,9 @@ The preset appears in the picker immediately. Requires [Git for Windows](https:/
 - CI runs on real `windows-latest`. It builds the runtime, spawns a persistent Git Bash PTY through it, and proves state survives across writes (`STATE=x` in one call, `echo $STATE` in the next). The same job fails on the stock runtime by construction of the inspector gap.
 - Unit tests cover the inspector's tree ordering, pid-recycle cycles, identity matching, and signal mapping.
 
-## Honest limitations (v0.1)
+## Honest limitations (v0.2)
 
-- Foreground process-group inspection has no Windows equivalent, so interrupting a long-running command inside the persistent shell is degraded. planned as Ctrl-C injection in v0.2.
+- Interrupting a running command works through Ctrl-C injection (SIGINT/SIGTSTP as PTY input, the ConPTY convention). SIGTERM/SIGKILL against a foreground process stay unsupported on Windows and error honestly.
 - Behavior under the Windows ACL restricted-token sandbox is not yet verified. MSYS-based shells are known to struggle there. if the shell fails to start under `workspace-write`, run the session `danger-full-access` until v0.2. Reports welcome.
 - Developed against DSH `0.1.0-rc.6`. DSH is a developer preview with breaking changes announced. version pinned, fast-patch policy on every rc bump.
 
