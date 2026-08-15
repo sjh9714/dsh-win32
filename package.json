@@ -1,11 +1,16 @@
 {
   "name": "dsh-windows",
   "version": "0.1.0",
-  "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | 让 DeepSeek Harness 在 Windows 上成为一等公民",
+  "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | \u8ba9 DeepSeek Harness \u5728 Windows \u4e0a\u6210\u4e3a\u4e00\u7b49\u516c\u6c11",
   "type": "module",
   "license": "MIT",
   "repository": "github:sjh9714/dsh-windows",
-  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "windows"],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "windows"
+  ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
@@ -31,7 +36,8 @@
   "scripts": {
     "build": "tsc -p .",
     "test": "vitest run",
-    "typecheck": "tsc -p . --noEmit"
+    "typecheck": "tsc -p . --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dsh": {
     "bundle": {
