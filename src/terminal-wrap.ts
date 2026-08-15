@@ -15,10 +15,13 @@
  * pretending a delivery happened.
  */
 
+import { spawnSync } from 'node:child_process'
+
 interface TerminalHandleLike {
   readonly pid: number
   write(data: string): Promise<void>
   signalForeground(signal: string): Promise<number>
+  terminate(): Promise<void>
 }
 
 const CONTROL_CHARS: Record<string, string> = {
@@ -26,22 +29,46 @@ const CONTROL_CHARS: Record<string, string> = {
   SIGTSTP: '\x1a',
 }
 
-/** Wrap a live terminal handle so keyboard-equivalent signals are injected as input. */
-export function wrapTerminalHandle<H extends TerminalHandleLike>(handle: H): H {
+function taskkillTree(pid: number): void {
+  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+}
+
+/**
+ * Wrap a live terminal handle: keyboard-equivalent signals are injected as
+ * input, and a failed terminate falls back to a forced tree kill. Directly
+ * spawned console apps (busybox ash observed on CI) can survive a ConPTY
+ * kill, leaving `terminate()` to throw "terminal cleanup failed; surviving
+ * pid" — taskkill /T /F is the reliable Windows fallback, then one retry.
+ */
+export function wrapTerminalHandle<H extends TerminalHandleLike>(handle: H, killTree: (pid: number) => void = taskkillTree): H {
   return new Proxy(handle, {
     get(target, property) {
-      if (property !== 'signalForeground') {
-        const value = Reflect.get(target, property, target)
-        return typeof value === 'function' ? value.bind(target) : value
+      if (property === 'signalForeground') {
+        return async (signal: string): Promise<number> => {
+          const controlChar = CONTROL_CHARS[signal]
+          if (controlChar === undefined) return target.signalForeground(signal)
+          await target.write(controlChar)
+          // No pgid exists on Windows; the terminal pid is the honest stand-in
+          // for "the session that received the keystroke".
+          return target.pid
+        }
       }
-      return async (signal: string): Promise<number> => {
-        const controlChar = CONTROL_CHARS[signal]
-        if (controlChar === undefined) return target.signalForeground(signal)
-        await target.write(controlChar)
-        // No pgid exists on Windows; the terminal pid is the honest stand-in
-        // for "the session that received the keystroke".
-        return target.pid
+      if (property === 'terminate') {
+        return async (): Promise<void> => {
+          try {
+            await target.terminate()
+          } catch (error) {
+            killTree(target.pid)
+            try {
+              await target.terminate()
+            } catch {
+              throw error
+            }
+          }
+        }
       }
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
     },
   })
 }

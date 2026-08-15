@@ -23,6 +23,9 @@ jobs:
       - name: persistent PTY smoke (the flagship claim, on the real OS)
         timeout-minutes: 5
         run: node scripts/pty-smoke.mjs
+      - name: foreground legacy-encoding smoke
+        timeout-minutes: 5
+        run: node scripts/encoding-smoke.mjs
       - name: doctor + setup smoke
         shell: bash
         run: |

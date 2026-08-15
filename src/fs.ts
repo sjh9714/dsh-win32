@@ -57,9 +57,11 @@ export function sniff(bytes: Uint8Array): SniffVerdict {
   const hasNul = window.includes(0)
   if (!hasNul) {
     if (utf8Clean(bytes)) return 'utf8'
-    // GBK candidate: decode must not produce replacement characters.
-    const decoded = iconv.decode(Buffer.from(window), 'gbk')
-    if (!decoded.includes('�')) return 'gbk'
+    // GBK candidate: decode must not produce replacement characters. A sniff
+    // window may cut a two-byte GBK sequence at its end, so a failed full
+    // decode gets one retry with the last byte dropped.
+    const gbkClean = (end: number) => end > 0 && !iconv.decode(Buffer.from(window.subarray(0, end)), 'gbk').includes('�')
+    if (gbkClean(window.length) || gbkClean(window.length - 1)) return 'gbk'
     return 'unknown'
   }
   // BOM-less UTF-16LE: ASCII text shows as `X 0x00` pairs — count NULs in odd positions.

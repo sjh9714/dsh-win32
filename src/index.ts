@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process'
 import type { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { WindowsProcessInspector } from './inspector.ts'
+import { collectStream } from './shell-decode.ts'
 import { wrapTerminalHandle } from './terminal-wrap.ts'
 
 export { WindowsProcessInspector } from './inspector.ts'
@@ -44,5 +45,42 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
     // On win32 the foreground-group signal path cannot exist; deliver
     // keyboard-equivalent signals as PTY input instead (Ctrl-C injection).
     return process.platform === 'win32' ? wrapTerminalHandle(handle) : handle
+  }
+
+  override spawn(spec: Parameters<LocalSubprocessRuntime['spawn']>[0]): ReturnType<LocalSubprocessRuntime['spawn']> {
+    if (process.platform !== 'win32') return super.spawn(spec)
+    // Legacy-encoding-aware collect: the stock collector hardcodes UTF-8, so
+    // native tools writing OEM 936 / UTF-16 garble. Rewrite collect-mode
+    // streams to raw pipes, consume the bytes ourselves, and serve the
+    // reader contract from sniffed-and-decoded UTF-8 text.
+    const stdoutCollect = typeof spec.stdio.stdout === 'object' ? spec.stdio.stdout : undefined
+    const stderrCollect = typeof spec.stdio.stderr === 'object' ? spec.stdio.stderr : undefined
+    if (stdoutCollect === undefined && stderrCollect === undefined) return super.spawn(spec)
+    const rewritten = {
+      ...spec,
+      stdio: {
+        ...spec.stdio,
+        stdout: stdoutCollect !== undefined ? 'pipe' as const : spec.stdio.stdout,
+        stderr: stderrCollect !== undefined ? 'pipe' as const : spec.stdio.stderr,
+      },
+    }
+    const handle = super.spawn(rewritten)
+    const collected: { stdout?: unknown, stderr?: unknown } = {}
+    if (stdoutCollect !== undefined && handle.stdout !== undefined) {
+      collected.stdout = collectStream(handle.stdout, stdoutCollect.maxBytes).reader
+    }
+    if (stderrCollect !== undefined && handle.stderr !== undefined) {
+      collected.stderr = collectStream(handle.stderr, stderrCollect.maxBytes).reader
+    }
+    return new Proxy(handle, {
+      get(target, property) {
+        if (property === 'collected') return collected
+        // Streams claimed for decoding are not the caller's to consume.
+        if (property === 'stdout' && stdoutCollect !== undefined) return undefined
+        if (property === 'stderr' && stderrCollect !== undefined) return undefined
+        const value = Reflect.get(target, property, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    }) as ReturnType<LocalSubprocessRuntime['spawn']>
   }
 }

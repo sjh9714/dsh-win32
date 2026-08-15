@@ -39,6 +39,29 @@ describe('wrapTerminalHandle', () => {
     expect(inner.writes).toEqual([])
   })
 
+  it('falls back to a tree kill when terminate fails, then retries', async () => {
+    const killed: number[] = []
+    let attempts = 0
+    const inner = {
+      ...fakeHandle(),
+      async terminate() {
+        attempts += 1
+        if (attempts === 1) throw new Error('terminal cleanup failed; surviving pid: 777')
+      },
+    }
+    await wrapTerminalHandle(inner, pid => killed.push(pid)).terminate()
+    expect(killed).toEqual([777])
+    expect(attempts).toBe(2)
+  })
+
+  it('rethrows the original error when the retry also fails', async () => {
+    const inner = {
+      ...fakeHandle(),
+      async terminate() { throw new Error('original failure') },
+    }
+    await expect(wrapTerminalHandle(inner, () => {}).terminate()).rejects.toThrow('original failure')
+  })
+
   it('delegates every other member to the inner handle', async () => {
     const inner = fakeHandle()
     const wrapped = wrapTerminalHandle(inner)
