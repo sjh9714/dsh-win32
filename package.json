@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | 让 DeepSeek Harness 在 Windows 上成为一等公民",
   "type": "module",
   "license": "MIT",
@@ -49,9 +49,9 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*",
-    "@deepseek-ai/dsh-subprocess-local": "*",
-    "@deepseek-ai/dsh-fs-local": "*"
+    "@deepseek-ai/cordis": ">=4.0.0 <5",
+    "@deepseek-ai/dsh-subprocess-local": ">=0.1.0-rc.5 <0.2.0",
+    "@deepseek-ai/dsh-fs-local": ">=0.1.0-rc.5 <0.2.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -71,5 +71,16 @@
   },
   "dependencies": {
     "iconv-lite": "^0.7.3"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subprocess-local": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-fs-local": {
+      "optional": true
+    }
   }
 }
