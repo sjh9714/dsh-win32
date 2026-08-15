@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dsh-windows CLI: `doctor` diagnoses the known DSH-on-Windows traps,
+ * dsh-win32 CLI: `doctor` diagnoses the known DSH-on-Windows traps,
  * `setup` installs the minimal-windows agent preset (and optionally a
  * desktop shortcut). Zero dependencies.
  */
@@ -76,7 +76,7 @@ function scanKoffi() {
 }
 
 function doctor() {
-  console.log(`dsh-windows doctor (platform: ${process.platform})`)
+  console.log(`dsh-win32 doctor (platform: ${process.platform})`)
 
   const [major, minor] = process.versions.node.split('.').map(Number)
   if (major > 22 || (major === 22 && minor >= 19)) ok(`node ${process.versions.node}`)
@@ -104,7 +104,7 @@ function doctor() {
   }
 
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
-  info(`bundle install: dsh plugin --profile web add dsh-windows  (then: npx dsh-windows setup)`)
+  info(`bundle install: dsh plugin --profile web add dsh-win32  (then: npx dsh-win32 setup)`)
   return { gitBash }
 }
 
@@ -160,6 +160,6 @@ const [, , command, ...rest] = process.argv
 if (command === 'setup') setup(rest)
 else if (command === 'doctor' || command === undefined) doctor()
 else {
-  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-windows [doctor|setup] [--bash <path>] [--shortcut]`)
+  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-win32 [doctor|setup] [--bash <path>] [--shortcut]`)
   process.exit(1)
 }

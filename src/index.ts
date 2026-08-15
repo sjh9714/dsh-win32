@@ -1,5 +1,5 @@
 /**
- * dsh-windows: Windows-aware local subprocess runtime for DeepSeek Harness.
+ * dsh-win32: Windows-aware local subprocess runtime for DeepSeek Harness.
  *
  * Identical to the stock @deepseek-ai/dsh-subprocess-local runtime except it
  * supplies a Windows ProcessInspector, which the stock runtime lacks. That one

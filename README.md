@@ -1,20 +1,20 @@
-# dsh-windows
+# dsh-win32
 
 First-class Windows for DeepSeek Harness.
 
-[中文](./README.zh.md) · [![ci](https://github.com/sjh9714/dsh-windows/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-windows/actions/workflows/ci.yml)
+[中文](./README.zh.md) · [![ci](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml)
 
-| | Stock DSH on Windows | With dsh-windows |
+| | Stock DSH on Windows | With dsh-win32 |
 |---|---|---|
 | Minimal preset | dead. every persistent-shell spawn throws `terminal inspection is unsupported on platform win32` | **works. real persistent Git Bash, state survives across tool calls** |
 | Install traps | koffi segfault chain, PS 5.1 crash loop, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
-| Setup | find the npx command on GitHub every morning | `npx dsh-windows setup` (+ optional desktop shortcut) |
+| Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup` (+ optional desktop shortcut) |
 
 ## Why this exists
 
 The community keeps reporting that DeepSeek models do their best work in DSH's Minimal preset. On Windows that preset does not run at all. Its persistent bash needs a PTY, and the stock subprocess runtime resolves a platform process inspector that throws on win32 before node-pty is even reached. Every Windows user has been locked out of the mode the model is best aligned with.
 
-dsh-windows closes that gap with three pieces.
+dsh-win32 closes that gap with three pieces.
 
 1. **A Windows-aware subprocess runtime.** Same stock runtime, plus the missing piece, a win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). Swapped in by bundle patch on win32 only. Other platforms keep the stock row untouched.
 2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction.
@@ -23,9 +23,9 @@ dsh-windows closes that gap with three pieces.
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-windows   # wires the runtime bundle
-npx dsh-windows setup                      # installs the preset + prints a health report
-npx dsh-windows setup --shortcut           # same, plus a desktop shortcut
+dsh plugin --profile web add dsh-win32   # wires the runtime bundle
+npx dsh-win32 setup                      # installs the preset + prints a health report
+npx dsh-win32 setup --shortcut           # same, plus a desktop shortcut
 ```
 
 The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`).

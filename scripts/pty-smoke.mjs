@@ -1,5 +1,5 @@
 /**
- * End-to-end proof for the flagship claim: with the dsh-windows runtime
+ * End-to-end proof for the flagship claim: with the dsh-win32 runtime
  * loaded, a persistent bash PTY spawns and keeps state across writes on
  * this machine — including win32, where the stock runtime throws before
  * node-pty is even reached.

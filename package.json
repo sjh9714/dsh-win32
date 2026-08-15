@@ -1,10 +1,10 @@
 {
-  "name": "dsh-windows",
+  "name": "dsh-win32",
   "version": "0.1.0",
   "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | 让 DeepSeek Harness 在 Windows 上成为一等公民",
   "type": "module",
   "license": "MIT",
-  "repository": "github:sjh9714/dsh-windows",
+  "repository": "github:sjh9714/dsh-win32",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -15,7 +15,7 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "bin": {
-    "dsh-windows": "bin/cli.mjs"
+    "dsh-win32": "bin/cli.mjs"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

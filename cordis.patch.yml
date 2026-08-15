@@ -1,4 +1,4 @@
-# dsh-windows bundle patch.
+# dsh-win32 bundle patch.
 #
 # On win32 the stock local subprocess runtime cannot spawn PTYs (its platform
 # process inspector throws), which kills the persistent shell and the Minimal
@@ -8,5 +8,5 @@
   disabled: !!js process.platform === 'win32'
 - insert:
     - id: subprocess-windows
-      name: 'dsh-windows'
+      name: 'dsh-win32'
       disabled: !!js process.platform !== 'win32'
