@@ -60,7 +60,10 @@ await ctx.plugin(SandboxPolicyService, { mode: MODE, workspaceRoot: root })
 await ctx.plugin(WindowsSubprocessRuntime)
 await ctx.plugin(terminalBash, {
   shellPath: findBash(),
-  shellArgs: ['--noprofile', '--norc', '-i'],
+  // SMOKE_SHELL_ARGS lets experiments drive non-bash shells (busybox ash: "sh,-i").
+  shellArgs: process.env.SMOKE_SHELL_ARGS !== undefined
+    ? process.env.SMOKE_SHELL_ARGS.split(',')
+    : ['--noprofile', '--norc', '-i'],
   pollIntervalMs: 50,
   exactProbeAfterMs: 100,
   idleSilenceMs: 500,

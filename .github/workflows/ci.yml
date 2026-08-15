@@ -73,3 +73,27 @@ jobs:
             echo "NEW failure mode (signature changed) — investigate"
             exit 1
           fi
+
+  busybox-experiment:
+    # v0.4 gate: can a non-Cygwin shell (busybox-w32 ash) survive the
+    # WRITE_RESTRICTED token where MSYS bash dies at cygheap init?
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - name: fetch busybox-w32
+        shell: bash
+        run: curl -fL -o busybox64.exe https://frippery.org/files/busybox/busybox64.exe && ./busybox64.exe sh -c 'echo busybox alive'
+      - name: busybox ash under danger-full-access (control)
+        timeout-minutes: 6
+        shell: bash
+        run: SMOKE_BASH="$PWD/busybox64.exe" SMOKE_SHELL_ARGS="sh,-i" SANDBOX_MODE=danger-full-access node scripts/sandbox-smoke.mjs
+      - name: busybox ash under workspace-write (the gate)
+        timeout-minutes: 6
+        shell: bash
+        run: SMOKE_BASH="$PWD/busybox64.exe" SMOKE_SHELL_ARGS="sh,-i" SANDBOX_MODE=workspace-write node scripts/sandbox-smoke.mjs
