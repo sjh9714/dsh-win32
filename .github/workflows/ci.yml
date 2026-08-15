@@ -28,9 +28,9 @@ jobs:
         run: |
           node bin/cli.mjs doctor
           if [ "$RUNNER_OS" = "Windows" ]; then
-            node bin/cli.mjs setup
+            node bin/cli.mjs setup --no-bundle
             grep -q 'bash.exe' "$USERPROFILE/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
           else
-            node bin/cli.mjs setup --bash /bin/bash
+            node bin/cli.mjs setup --bash /bin/bash --no-bundle
             grep -q "shellPath: '/bin/bash'" "$HOME/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
           fi

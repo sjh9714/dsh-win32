@@ -104,8 +104,50 @@ function doctor() {
   }
 
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
-  info(`bundle install: dsh plugin --profile web add dsh-win32  (then: npx dsh-win32 setup)`)
+  info(`one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)`)
   return { gitBash }
+}
+
+function bundleInstalled(profile = 'web') {
+  const manifest = join(DSH_HOME, 'profiles', profile, 'package.json')
+  if (!existsSync(manifest)) return false
+  try {
+    return (JSON.parse(readFileSync(manifest, 'utf8')).dsh?.profile?.bundles ?? []).includes('dsh-win32')
+  } catch {
+    return false
+  }
+}
+
+/** Forward to the dsh CLI through npx so this works without a global dsh install. */
+function runDshPlugin(args) {
+  // Constant argv; shell:true only because Windows npx is a .cmd shim (CVE-2024-27980 policy).
+  execFileSync(WIN ? 'npx.cmd' : 'npx', ['--yes', '@deepseek-ai/dsh', 'plugin', ...args], {
+    stdio: 'inherit',
+    windowsHide: true,
+    shell: WIN,
+  })
+}
+
+function ensureBundle() {
+  if (bundleInstalled()) {
+    ok('bundle dsh-win32 already wired into the web profile')
+    return
+  }
+  console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
+  runDshPlugin(['--profile', 'web', 'add', 'dsh-win32'])
+}
+
+function fix() {
+  const broken = scanKoffi().filter(({ version }) => version === '3.1.3' || version === '3.1.4')
+  if (broken.length === 0) {
+    ok('nothing to fix — no broken koffi prebuilt found in any profile')
+    return
+  }
+  for (const { profile, version } of broken) {
+    console.log(`pinning koffi ${version} -> 3.1.2 in profile "${profile}"...`)
+    runDshPlugin(['--profile', profile, 'add', 'koffi@3.1.2', '--ignore-scripts'])
+  }
+  ok('koffi pinned; restart dsh web')
 }
 
 function substitutePreset(bashPath) {
@@ -142,6 +184,7 @@ function setup(args) {
     console.error('setup: Git Bash is required for the minimal-windows preset (or pass --bash <path>)')
     process.exit(1)
   }
+  if (!args.includes('--no-bundle')) ensureBundle()
   const installed = substitutePreset(bashPath)
   console.log(`installed agent preset "${PRESET_ID}" -> ${installed}`)
   console.log('it appears in the preset picker immediately (no restart needed)')
@@ -158,8 +201,9 @@ function setup(args) {
 
 const [, , command, ...rest] = process.argv
 if (command === 'setup') setup(rest)
+else if (command === 'fix') fix()
 else if (command === 'doctor' || command === undefined) doctor()
 else {
-  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-win32 [doctor|setup] [--bash <path>] [--shortcut]`)
+  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-win32 [doctor|setup|fix] [--bash <path>] [--shortcut] [--no-bundle]`)
   process.exit(1)
 }

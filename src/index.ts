@@ -8,6 +8,7 @@
  * this runtime in on Windows only; on other platforms the stock row stays.
  */
 
+import { spawnSync } from 'node:child_process'
 import type { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { WindowsProcessInspector } from './inspector.ts'
@@ -26,6 +27,15 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
       // Field is the runtime's designed injection seam; production otherwise
       // resolves an inspector lazily per PTY spawn and throws on win32.
       this.terminalInspector = new WindowsProcessInspector() as typeof this.terminalInspector
+      // The stock teardown taskkill omits windowsHide, so every timeout kill
+      // flashes a console window (community report #409). SpawnInternals is
+      // the runtime's own injection hook for exactly this knob.
+      this.internals = {
+        ...this.internals,
+        taskkill: pid => {
+          spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+        },
+      }
     }
   }
 

@@ -24,13 +24,22 @@ dsh-win32 用三个部分补上这个缺口。
 
 ## 安装
 
+PowerShell 里一行。
+
+```powershell
+irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
+```
+
+它会把运行时 bundle 接入 web profile、安装预设、建桌面快捷方式并输出体检报告。想用 npx 也一样。
+
 ```sh
-dsh plugin --profile web add dsh-win32   # 接入运行时 bundle
-npx dsh-win32 setup                      # 安装预设 + 输出体检报告
-npx dsh-win32 setup --shortcut           # 同上，外加桌面快捷方式
+npx dsh-win32 setup              # bundle + 预设 + 体检
+npx dsh-win32 setup --shortcut   # 同上，外加桌面快捷方式
 ```
 
 预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
+
+已经出问题了？`npx dsh-win32 doctor` 逐项指出已知的坑，`npx dsh-win32 fix` 自动修复能安全修的部分（pin 掉损坏的 koffi 预编译）。
 
 ## 实证
 

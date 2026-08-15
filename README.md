@@ -24,13 +24,22 @@ dsh-win32 closes that gap with three pieces.
 
 ## Install
 
+One line, in PowerShell.
+
+```powershell
+irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
+```
+
+That wires the runtime bundle into your web profile, installs the preset, creates a desktop shortcut, and prints a health report. Prefer npx? Same thing.
+
 ```sh
-dsh plugin --profile web add dsh-win32   # wires the runtime bundle
-npx dsh-win32 setup                      # installs the preset + prints a health report
-npx dsh-win32 setup --shortcut           # same, plus a desktop shortcut
+npx dsh-win32 setup              # bundle + preset + health report
+npx dsh-win32 setup --shortcut   # same, plus the desktop shortcut
 ```
 
 The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`).
+
+Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
 
 ## Receipts
 
