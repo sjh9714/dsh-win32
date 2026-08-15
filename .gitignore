@@ -3,3 +3,6 @@ node_modules/
 lib/
 __pycache__/
 .DS_Store
+launch/
+demo/node_modules/
+demo/_frames/

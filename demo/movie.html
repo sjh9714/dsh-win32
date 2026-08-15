@@ -1,0 +1,186 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root{
+    --bg:#fbfbfc; --side:#f2f2f4; --line:#e4e4e8; --ink:#1f2328; --dim:#8b8f98;
+    --user:#dbe7fd; --accent:#2f6fed; --ok:#1a7f37; --fail:#c93c37;
+    --sans:-apple-system,'Helvetica Neue',Arial,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+    --tbg:#0c0c0c; --tink:#cccccc; --tdim:#767676; --tok:#16c60c; --twarn:#f9f1a5;
+  }
+  html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#141414}
+  #scene{position:relative;width:1920px;height:1080px;overflow:hidden;background:#141414}
+  #world{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+
+  /* ── DSH web UI (recreation, palette from the real light theme) ── */
+  #app{position:absolute;inset:0;background:var(--bg);font-family:var(--sans);color:var(--ink)}
+  #side{position:absolute;left:0;top:0;bottom:0;width:340px;background:var(--side);border-right:1px solid var(--line);padding:28px 22px;box-sizing:border-box}
+  .brand{font-size:22px;font-weight:700;letter-spacing:.2px}
+  .newbtn{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;font-size:19px;color:#444}
+  .wslabel{margin-top:30px;color:var(--dim);font-size:16px}
+  .wsitem{margin-top:12px;font-size:18px;color:#555}
+  #chat{position:absolute;left:340px;right:0;top:0;bottom:0}
+  #preset{position:absolute;left:430px;top:36px;font-size:19px;color:#555;background:#fff;border:1px solid var(--line);border-radius:999px;padding:10px 22px}
+  #preset b{color:var(--accent)}
+  #turn{position:absolute;left:430px;right:90px;top:110px}
+  .umsg{margin-left:auto;max-width:760px;background:var(--user);border-radius:16px;padding:20px 26px;font-size:24px;line-height:1.5;width:fit-content}
+  .card{margin-top:26px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 26px;max-width:1080px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .chead{font-family:var(--mono);font-size:21px;color:#555}
+  .chead .tname{color:var(--accent);font-weight:600}
+  .cbody{margin-top:14px;font-family:var(--mono);font-size:23px;line-height:1.55;white-space:pre-wrap}
+  .ok{color:var(--ok);font-weight:600}
+  .failrow{color:var(--fail);font-weight:600}
+  .spin{display:inline-block;width:16px;text-align:center;color:var(--dim)}
+  .amsg{margin-top:28px;font-size:25px;line-height:1.55;max-width:1000px}
+  #composer{position:absolute;left:430px;right:90px;bottom:44px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:26px 28px 60px;box-shadow:0 1px 4px rgba(0,0,0,.04);color:var(--dim);font-size:21px}
+
+  /* ── terminal overlay ── */
+  #shade{position:absolute;inset:0;background:rgba(15,17,22,.55);opacity:0}
+  #term{position:absolute;left:360px;top:190px;width:1200px;background:var(--tbg);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.5);opacity:0}
+  #tbar{height:52px;background:#1f1f1f;border-radius:12px 12px 0 0;display:flex;align-items:center;padding:0 20px;color:#bbb;font-size:17px;font-family:var(--sans)}
+  #tbody{padding:26px 30px 34px;font-family:var(--mono);font-size:24px;line-height:1.65;color:var(--tink);white-space:pre-wrap;min-height:380px}
+  .tp{color:var(--tdim)}
+  .tg{color:var(--tok)}
+  .tw{color:var(--twarn)}
+  .caret{display:inline-block;width:12px;height:26px;background:#ccc;vertical-align:-4px}
+
+  /* ── end card ── */
+  #end{position:absolute;inset:0;background:#101216;color:#fff;font-family:var(--sans);opacity:0}
+  #end .big{position:absolute;left:0;right:0;top:380px;text-align:center;font-size:104px;font-weight:800;letter-spacing:-1px}
+  #end .sub{position:absolute;left:0;right:0;top:520px;text-align:center;font-size:34px;color:#9aa3b2}
+  #end .cmd{position:absolute;left:0;right:0;top:640px;text-align:center;font-family:var(--mono);font-size:30px;color:#7ee787}
+</style>
+
+<div id="scene"><div id="world">
+  <div id="app">
+    <div id="side">
+      <div class="brand">DeepSeek Harness</div>
+      <div class="newbtn">+ New session</div>
+      <div class="wslabel">WORKSPACES</div>
+      <div class="wsitem">C:\work\demo</div>
+    </div>
+    <div id="chat">
+      <div id="preset"></div>
+      <div id="turn">
+        <div class="umsg">Set MARK=win42 in bash, then echo it from a SECOND bash call with the cwd.</div>
+        <div class="card" id="card1" style="visibility:hidden">
+          <div class="chead"><span class="spin" id="s1">◐</span> <span class="tname">bash</span> <span id="c1arg">MARK=win42</span></div>
+          <div class="cbody" id="c1out"></div>
+        </div>
+        <div class="card" id="card2" style="visibility:hidden">
+          <div class="chead"><span class="spin" id="s2">◐</span> <span class="tname">bash</span> echo persist:$MARK:$(pwd)</div>
+          <div class="cbody" id="c2out"></div>
+        </div>
+        <div class="amsg" id="amsg"></div>
+      </div>
+      <div id="composer">Message DeepSeek…</div>
+    </div>
+  </div>
+  <div id="shade"></div>
+  <div id="term">
+    <div id="tbar">⊞ &nbsp;PowerShell — dsh-win32</div>
+    <div id="tbody"></div>
+  </div>
+</div>
+<div id="end">
+  <div class="big">dsh-win32</div>
+  <div class="sub">Real Minimal mode on Windows · 极简模式的 Windows 补全</div>
+  <div class="cmd">dsh plugin --profile web add dsh-win32</div>
+</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id)
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v))
+// progress 0..1 inside [a,b]
+const ph = (t,a,b) => clamp((t-a)/(b-a), 0, 1)
+const after = (t,a) => t >= a
+const typed = (s,p) => s.slice(0, Math.round(s.length*p))
+
+const ERR = 'terminal inspection is unsupported on platform win32'
+const CMD1 = 'dsh plugin --profile web add dsh-win32'
+const CMD2 = 'npx dsh-win32 setup'
+const DOC = [
+  ['tg','  ok    node 22.23.2'],
+  ['tg','  ok    Git Bash: C:/Program Files/Git/bin/bash.exe'],
+  ['tg','  ok    PowerShell 7: C:/Program Files/PowerShell/7/pwsh.exe'],
+  ['tg','installed agent preset "minimal-windows"'],
+]
+
+window.DURATION = 12400
+
+// camera keyframes: [t, scale, x, y] (translate applied before scale, focus point)
+function camera(t){
+  // scene A zoom onto the error row; C zoom onto persist row
+  let s=1, x=0, y=0
+  if (t>=1500 && t<3400){ const p=ph(t,1500,2800); s=1+.32*p; x=-420*p; y=-120*p }
+  if (t>=8300 && t<10800){ const p=ph(t,8300,9300); s=1+.34*p; x=-430*p; y=-260*p }
+  return `translate(${x}px,${y}px) scale(${s})`
+}
+
+window.seek = function(t){
+  // ── defaults (recomputed every call: pure function of t) ──
+  const A = t < 3400, B = t >= 3400 && t < 6600, C = t >= 6600 && t < 10800
+  $('world').style.transform = camera(t)
+  $('end').style.opacity = t >= 10800 ? String(ph(t,10800,11200)) : '0'
+  $('world').style.opacity = t >= 10800 ? String(1-ph(t,10800,11200)) : '1'
+
+  // preset chip + turn content differ between A and C
+  if (t < 6600) {
+    $('preset').innerHTML = 'Agent preset · <b>极简模式 (minimal)</b>'
+  } else {
+    $('preset').innerHTML = 'Agent preset · <b>Minimal (Windows)</b>'
+  }
+
+  // ── scene A: the failure ──
+  if (t < 6600) {
+    const show1 = after(t,500)
+    $('card1').style.visibility = show1 ? 'visible' : 'hidden'
+    $('card2').style.visibility = 'hidden'
+    $('amsg').textContent = ''
+    if (show1) {
+      const failed = after(t,1100)
+      $('s1').textContent = failed ? '✕' : '◐'
+      $('s1').style.color = failed ? 'var(--fail)' : 'var(--dim)'
+      $('c1out').innerHTML = failed ? `<span class="failrow">Error: ${ERR}</span>` : ''
+    }
+  }
+
+  // ── scene C: the proof ──
+  if (t >= 6600) {
+    $('card1').style.visibility = after(t,6900) ? 'visible' : 'hidden'
+    const d1 = after(t,7400)
+    $('s1').textContent = d1 ? '✓' : '◐'
+    $('s1').style.color = d1 ? 'var(--ok)' : 'var(--dim)'
+    $('c1out').innerHTML = d1 ? '<span class="ok">exit 0</span>' : ''
+    $('card2').style.visibility = after(t,7600) ? 'visible' : 'hidden'
+    const d2 = after(t,8200)
+    $('s2').textContent = d2 ? '✓' : '◐'
+    $('s2').style.color = d2 ? 'var(--ok)' : 'var(--dim)'
+    $('c2out').innerHTML = d2 ? '<span class="ok">persist:win42:/c/work/demo</span>' : ''
+    const msg = 'State survived across calls. Persistent Git Bash, on Windows.'
+    $('amsg').textContent = after(t,8600) ? typed(msg, ph(t,8600,9600)) : ''
+  }
+
+  // ── scene B: terminal overlay ──
+  const bIn = ph(t,3400,3700), bOut = 1-ph(t,6300,6600)
+  const bVis = t>=3400 && t<6600 ? Math.min(bIn,bOut) : 0
+  $('shade').style.opacity = String(.55*bVis)
+  $('term').style.opacity = String(bVis)
+  if (bVis > 0) {
+    let out = ''
+    const p1 = ph(t,3500,4300)
+    out += '<span class="tp">PS C:\\work\\demo&gt; </span>' + typed(CMD1,p1)
+    if (p1 >= 1 && after(t,4400)) out += '\n<span class="tg">+ dsh-win32@0.1.0</span>'
+    const p2 = ph(t,4700,5300)
+    if (after(t,4700)) out += '\n<span class="tp">PS C:\\work\\demo&gt; </span>' + typed(CMD2,p2)
+    if (p2 >= 1) DOC.forEach((row,i) => {
+      if (after(t, 5350 + i*200)) out += `\n<span class="${row[0]}">${row[1]}</span>`
+    })
+    if (t < 5300 || (Math.floor(t/450)%2===0 && t<6100)) out += '<span class="caret"></span>'
+    $('tbody').innerHTML = out
+  }
+}
+
+window.ready = document.fonts.ready.then(() => window.seek(0))
+</script>

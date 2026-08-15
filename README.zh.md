@@ -4,6 +4,8 @@
 
 [English](./README.md) · [![ci](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml)
 
+![demo](./assets/demo.gif)
+
 | | 官方 DSH（Windows） | 装上 dsh-win32 |
 |---|---|---|
 | 极简模式 | 无法使用。持久 shell 一启动就抛 `terminal inspection is unsupported on platform win32` | **可用。真正的持久 Git Bash，状态跨调用保留** |
