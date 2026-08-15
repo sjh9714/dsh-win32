@@ -1,4 +1,4 @@
-# Core adoption notes: win32 ProcessInspector
+# Core adoption notes for the win32 ProcessInspector
 
 Everything the core team needs to absorb the Windows process inspector, in one page. Written for deepseek-ai/deepseek-harness maintainers, discussion at [deepseek-harness#1889](https://github.com/deepseek-ai/deepseek-harness/discussions/1889).
 
@@ -48,4 +48,4 @@ Minimal-diff shape: a `Win32ProcessInspector` next to the Linux/Mac ones and one
 
 ## License
 
-MIT. Relicense, reshape, split, or rewrite freely; attribution appreciated but not required. Happy to adjust tests or structure to your conventions on request.
+MIT. Relicense, reshape, split, or rewrite freely. Attribution appreciated but not required. Happy to adjust tests or structure to your conventions on request.
