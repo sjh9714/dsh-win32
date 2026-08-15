@@ -1,3 +1,3 @@
 name: Minimal (Windows)
-description: The real Minimal preset on Windows — persistent Git Bash shell + str_replace_editor. 官方极简模式的 Windows 版：持久 Git Bash + 编辑器双工具。
+description: Persistent Git Bash Minimal. NEEDS danger-full-access (MSYS dies in the workspace-write sandbox — use the sandboxed variant there). 需要 danger-full-access；沙箱内请用 sandboxed 变体。
 order: 4

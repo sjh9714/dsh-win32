@@ -1,3 +1,3 @@
 name: Minimal (Windows, sandboxed)
-description: Minimal that stays inside the workspace-write sandbox — persistent busybox ash. 不出沙箱的极简模式：受限令牌内的持久 shell。
+description: Minimal that WORKS inside workspace-write — persistent busybox ash survives the restricted token. 沙箱内可用的极简模式（busybox ash，受限令牌实测存活）。
 order: 5

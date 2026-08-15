@@ -103,6 +103,10 @@ function doctor() {
     info('not Windows — doctor checks the Windows traps only when run there')
   }
 
+  if (WIN) {
+    warn('mode matters: the Git Bash preset (minimal-windows) needs danger-full-access — MSYS bash dies inside the workspace-write sandbox')
+    info('to stay sandboxed, install the busybox variant: npx dsh-win32 setup --sandboxed  (then pick "Minimal (Windows, sandboxed)")')
+  }
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
   info(`one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)`)
   return { gitBash }
