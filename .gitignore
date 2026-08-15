@@ -6,3 +6,4 @@ __pycache__/
 launch/
 demo/node_modules/
 demo/_frames/
+session-*.md
