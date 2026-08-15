@@ -66,15 +66,27 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
     }
     const handle = super.spawn(rewritten)
     const collected: { stdout?: unknown, stderr?: unknown } = {}
+    const drains: Promise<void>[] = []
     if (stdoutCollect !== undefined && handle.stdout !== undefined) {
-      collected.stdout = collectStream(handle.stdout, stdoutCollect.maxBytes).reader
+      const { reader, done } = collectStream(handle.stdout, stdoutCollect.maxBytes, stdoutCollect.spill?.maxBytes)
+      collected.stdout = reader
+      drains.push(done)
     }
     if (stderrCollect !== undefined && handle.stderr !== undefined) {
-      collected.stderr = collectStream(handle.stderr, stderrCollect.maxBytes).reader
+      const { reader, done } = collectStream(handle.stderr, stderrCollect.maxBytes, stderrCollect.spill?.maxBytes)
+      collected.stderr = reader
+      drains.push(done)
     }
+    // The outcome must not settle before the pipes drain, or a read right
+    // after `done` can miss the final chunks.
+    const doneWithDrain = handle.done.then(async outcome => {
+      await Promise.all(drains)
+      return outcome
+    })
     return new Proxy(handle, {
       get(target, property) {
         if (property === 'collected') return collected
+        if (property === 'done') return doneWithDrain
         // Streams claimed for decoding are not the caller's to consume.
         if (property === 'stdout' && stdoutCollect !== undefined) return undefined
         if (property === 'stderr' && stderrCollect !== undefined) return undefined

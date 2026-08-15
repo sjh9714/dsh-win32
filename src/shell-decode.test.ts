@@ -1,3 +1,4 @@
+import { readFileSync, existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import iconv from 'iconv-lite'
 import { DecodingCollector } from './shell-decode.ts'
@@ -44,5 +45,32 @@ describe('DecodingCollector', () => {
     collector.push(Buffer.from('abc'))
     const first = collector.readFrom(0)
     expect(collector.readFrom(first.nextOffset)).toEqual({ text: '', nextOffset: 3, lossy: false })
+  })
+})
+
+describe('DecodingCollector spill', () => {
+  it('creates a raw spill on overflow and reports its path', () => {
+    const collector = new DecodingCollector(8, 1024)
+    collector.push(Buffer.from('0123456789'))
+    collector.push(Buffer.from('ABCDEF'))
+    const read = collector.readFrom(0)
+    expect(read.spillPath).toBeDefined()
+    expect(readFileSync(read.spillPath!, 'utf8')).toBe('0123456789ABCDEF')
+  })
+
+  it('discards the spill past its cap', () => {
+    const collector = new DecodingCollector(4, 10)
+    collector.push(Buffer.from('0123456789'))
+    const before = collector.readFrom(0)
+    collector.push(Buffer.from('OVERFLOW!'))
+    const after = collector.readFrom(0)
+    expect(after.spillPath).toBeUndefined()
+    if (before.spillPath !== undefined) expect(existsSync(before.spillPath)).toBe(false)
+  })
+
+  it('produces no spill when none was requested', () => {
+    const collector = new DecodingCollector(4)
+    collector.push(Buffer.from('0123456789'))
+    expect(collector.readFrom(0).spillPath).toBeUndefined()
   })
 })

@@ -172,8 +172,15 @@ async function ensureBusybox() {
   console.log(`downloading busybox-w32 (GPLv2, single executable) from ${BUSYBOX_URL}`)
   console.log('project: https://frippery.org/busybox — not bundled with dsh-win32, fetched on demand')
   mkdirSync(dirname(target), { recursive: true })
-  const response = await fetch(BUSYBOX_URL)
-  if (!response.ok) throw new Error(`busybox download failed: HTTP ${response.status}`)
+  let response
+  try {
+    response = await fetch(BUSYBOX_URL)
+  } catch (error) {
+    console.error('busybox download failed (network). If frippery.org is unreachable from your network,')
+    console.error('download busybox64.exe manually and pass it: npx dsh-win32 setup --sandboxed --busybox <path>')
+    throw error
+  }
+  if (!response.ok) throw new Error(`busybox download failed: HTTP ${response.status} — or pass --busybox <path> manually`)
   writeFileSync(target, Buffer.from(await response.arrayBuffer()))
   return target
 }
