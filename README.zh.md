@@ -19,7 +19,7 @@
 dsh-win32 用三个部分补上这个缺口。
 
 1. **Windows 版 subprocess 运行时。** 与官方运行时完全一致，只补上缺失的 win32 ProcessInspector（进程树与身份用 CIM，信号用 taskkill）。通过 bundle patch 仅在 win32 上替换，其他平台原样保留官方实现。
-2. **`minimal-windows` 预设。** 忠实复刻官方极简模式，唯一改动是把 PTY shell 换成你机器上的 Git Bash。同样的完整 persona、同样的双工具、同样不做压缩。v0.4 新增 `minimal-windows-sandboxed`：基于 busybox-w32 ash 的变体，**不出 `workspace-write` ACL 沙箱**（`npx dsh-win32 setup --sandboxed`，经确认后下载 busybox）——windows-latest CI 实测，受限令牌下活下来的第一个持久 shell。
+2. **`minimal-windows` 预设。** 忠实复刻官方极简模式，唯一改动是把 PTY shell 换成你机器上的 Git Bash。同样的完整 persona、同样的双工具、同样不做压缩。v0.4 新增 `minimal-windows-sandboxed`，基于 busybox-w32 ash 的变体，**不出 `workspace-write` ACL 沙箱**（`npx dsh-win32 setup --sandboxed`，经确认后下载 busybox）。windows-latest CI 实测，受限令牌下活下来的第一个持久 shell。
 3. **旧编码读取，能覆盖的地方全覆盖。** 官方 DSH 对 GBK/UTF-16 文件直接拒读（`FS_NOT_TEXT`），前台 shell 里原生工具的 GBK 输出也会乱码。两个预设都挂载了文件读取器（`dsh-win32/fs`），文件读取路径自动嗅探解码 GBK/UTF-16；v0.5 起运行时对前台 shell 的 collect 输出同样处理。写入保持 UTF-8（编辑旧编码文件会转码，如实写明）。PTY 输出在插件层无法解码（node-pty 先行解码），随附 shell 默认 UTF-8 所以预设不受影响。
 4. **doctor 体检。** 覆盖社区踩过的坑：koffi 3.1.3/3.1.4 损坏预编译（安装失败、目录选择器崩溃、会话保存闪退）、缺 PowerShell 7（5.1 回退在沙箱里 0xC0000142 崩溃循环）、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash。
 
