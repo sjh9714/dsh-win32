@@ -49,7 +49,7 @@ Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh
 ## Honest limitations (v0.2)
 
 - Interrupting a running command works through Ctrl-C injection (SIGINT/SIGTSTP as PTY input, the ConPTY convention). SIGTERM/SIGKILL against a foreground process stay unsupported on Windows and error honestly.
-- Behavior under the Windows ACL restricted-token sandbox is not yet verified. MSYS-based shells are known to struggle there. if the shell fails to start under `workspace-write`, run the session `danger-full-access` until v0.2. Reports welcome.
+- Measured, not just suspected. under the `workspace-write` ACL restricted token, MSYS bash dies during startup (`cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022` then `couldn't create signal pipe, Win32 error 5`). The minimal-windows preset therefore needs `danger-full-access` for now. The control run (`danger-full-access`) passes the full terminal-bash stack on windows-latest CI, and the failure signature is watched by a regression job. A non-Cygwin shell fallback is under investigation.
 - Developed against DSH `0.1.0-rc.6`. DSH is a developer preview with breaking changes announced. version pinned, fast-patch policy on every rc bump.
 
 ## License

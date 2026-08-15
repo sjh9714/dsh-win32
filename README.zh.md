@@ -49,7 +49,7 @@ npx dsh-win32 setup --shortcut   # 同上，外加桌面快捷方式
 ## 诚实的限制（v0.2）
 
 - 长命令中断已通过 Ctrl-C 注入实现（SIGINT/SIGTSTP 作为 PTY 输入，ConPTY 惯例）。对前台进程的 SIGTERM/SIGKILL 在 Windows 上仍不支持，并如实报错。
-- Windows ACL 受限令牌沙箱下的行为尚未验证（MSYS 系 shell 在其中已知困难）。如果 `workspace-write` 下 shell 起不来，暂用 `danger-full-access`，等 v0.2。欢迎反馈。
+- 已实测而非猜测：在 `workspace-write` 的 ACL 受限令牌下，MSYS bash 启动即死（`cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022`，随后 `couldn't create signal pipe, Win32 error 5`）。因此 minimal-windows 预设目前需要 `danger-full-access`。对照组（danger-full-access）在 windows-latest CI 上跑通了完整 terminal-bash 栈，该失败签名由回归任务持续监视。非 Cygwin shell 的替代方案在调研中。
 - 基于 DSH `0.1.0-rc.6` 开发。DSH 是开发者预览版，官方已声明会有破坏性变更。版本锁定，每次 rc 更新快速跟进。
 
 ## License

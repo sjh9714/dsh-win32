@@ -53,8 +53,23 @@ jobs:
         run: node scripts/sandbox-smoke.mjs
         env:
           SANDBOX_MODE: danger-full-access
-      - name: sandboxed PTY (workspace-write, ACL restricted token)
+      - name: workspace-write regression watch (known MSYS failure signature)
         timeout-minutes: 6
-        run: node scripts/sandbox-smoke.mjs
+        shell: bash
         env:
           SANDBOX_MODE: workspace-write
+        run: |
+          set +e
+          out=$(node scripts/sandbox-smoke.mjs 2>&1)
+          code=$?
+          echo "$out" | tail -5
+          if [ $code -eq 0 ]; then
+            echo "NEWS: workspace-write persistent shell now WORKS on win32 (was known-broken)"
+            exit 0
+          elif echo "$out" | grep -q "TokenDefaultDacl"; then
+            echo "reproduced the documented MSYS restricted-token failure (expected)"
+            exit 0
+          else
+            echo "NEW failure mode (signature changed) — investigate"
+            exit 1
+          fi
