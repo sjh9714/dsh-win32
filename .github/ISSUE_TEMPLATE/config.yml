@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions / feedback
+    url: https://github.com/sjh9714/dsh-win32/discussions
+    about: Not a bug? Ask or share here.
