@@ -61,3 +61,5 @@ if (!collected.includes(expected)) {
   process.exit(1)
 }
 console.log(`ok: persistent state survived across writes (${expected})`)
+// ConPTY handles keep the event loop alive after dispose on win32; exit explicitly.
+process.exit(0)
