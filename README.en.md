@@ -77,6 +77,8 @@ npx dsh-win32 doctor --json
 
 The output is the community `dsh-doctor/v1` envelope ([deepseek-harness#1719](https://github.com/deepseek-ai/deepseek-harness/discussions/1719)), with the contract's 0 / 1 / 2 exit codes (all pass / any warn / any fail). The `skip` status in it is ours. A check like `git_bash` is neither a pass nor a failure on Linux, it does not apply, and with only three states an implementation has to either lie or poison a cross-platform CI run. `skip` carries a mandatory reason and counts as neither.
 
+**`dsh-doctor/v1` vocabulary r5 compatible.** Drafted by [@ciceroyang](https://github.com/ciceroyang) (ciceroyang/dsh-doctor), reviewed by [@sjh9714](https://github.com/sjh9714) (dsh-win32) and [@moonquake2004](https://github.com/moonquake2004).
+
 The status literals are `pass`, `warn`, `fail` and `skip`. `node` is two-state on purpose, `pass` inside the declared range and `warn` outside it, which matches npm's EBADENGINE semantics and avoids a `fail` boundary that nothing declares.
 
 ## Writing your own preset on Windows
