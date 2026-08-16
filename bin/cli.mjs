@@ -129,11 +129,23 @@ function collectChecks() {
   if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
   else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it. setup enables it through corepack, or: npm install -g pnpm')
 
-  // Not a vocabulary name, so it carries the vendor prefix the contract asks for.
+  // Not a vocabulary name, so it carries the vendor prefix the contract asks
+  // for. Nominated for the r5 vocabulary as `installed_bundle` (#1719). The
+  // four states below are distinguishable on purpose: "not wired", "wired but
+  // never installed" and "installed but stale" have different fixes, and
+  // folding them into one warn hands the user the wrong instruction.
   const wiredBundle = bundleVersion()
-  if (wiredBundle === undefined) add('dsh-win32/bundle', 'warn', `not wired into the web profile; run: npx dsh-win32 setup`)
-  else if (wiredBundle === SELF_VERSION) add('dsh-win32/bundle', 'pass', wiredBundle)
-  else add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}; the runtime lives in the bundle, so run: npx dsh-win32 setup`)
+  if (wiredBundle === undefined) {
+    add('dsh-win32/bundle', 'warn', 'not wired into the web profile; run: npx dsh-win32 setup')
+  } else if (wiredBundle === SELF_VERSION) {
+    add('dsh-win32/bundle', 'pass', wiredBundle)
+  } else if (wiredBundle === 'wired, not installed') {
+    add('dsh-win32/bundle', 'warn', 'listed in the profile manifest but absent from its node_modules, so the runtime never loads; run: npx dsh-win32 setup')
+  } else if (wiredBundle === 'unreadable') {
+    add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown; run: npx dsh-win32 setup')
+  } else {
+    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}; the runtime lives in the bundle, so run: npx dsh-win32 setup`)
+  }
 
   const gitBash = WIN ? findGitBash() : undefined
   if (!WIN) {
