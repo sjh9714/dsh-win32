@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<!--
+  Plugin-market carousel card. Sized for dsh-market's strip, which renders
+  every shot at height:150px, max-width:260px, object-fit:cover. 1200x800 is
+  1.5:1, under the 1.73:1 box ratio, so nothing is cropped, and every type
+  size here is chosen to survive the 0.1875 downscale (the 80px rows land at
+  15px, the 44px label at 8px).
+-->
+<style>
+  :root{
+    --bg:#151719; --panel:#1d2023; --line:#2c3034; --ink:#e8eaed; --dim:#9aa0a6;
+    --accent:#5b9dff; --ok:#4ade80; --fail:#f87171;
+    --sans:-apple-system,'Helvetica Neue',Arial,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  html,body{margin:0;width:1200px;height:800px;overflow:hidden;background:var(--bg);font-family:var(--sans)}
+  #wrap{width:1200px;height:800px;box-sizing:border-box;padding:52px 56px;display:flex;flex-direction:column}
+  #label{font-size:44px;font-weight:700;color:var(--accent);letter-spacing:.5px}
+  #label span{color:var(--dim);font-weight:500}
+  .row{margin-top:34px;background:var(--panel);border:2px solid var(--line);border-radius:20px;padding:30px 34px;flex:1;display:flex;flex-direction:column;justify-content:center}
+  .row.bad{border-color:#5c2b2b}
+  .row.good{border-color:#2c5c3c}
+  .head{font-size:76px;font-weight:800;line-height:1.1;display:flex;align-items:center;gap:22px}
+  .bad .head{color:var(--fail)}
+  .good .head{color:var(--ok)}
+  .sub{margin-top:16px;font-size:46px;font-family:var(--mono);color:var(--dim);line-height:1.3}
+  .good .sub{color:#cfd4d9}
+</style>
+<div id="wrap">
+  <div id="label">dsh-win32 <span>· DeepSeek Harness on Windows</span></div>
+
+  <div class="row bad">
+    <div class="head">✕ stock DSH</div>
+    <div class="sub">unsupported on platform win32</div>
+  </div>
+
+  <div class="row good">
+    <div class="head">✓ persistent shell</div>
+    <div class="sub">runs inside the sandbox</div>
+  </div>
+</div>
