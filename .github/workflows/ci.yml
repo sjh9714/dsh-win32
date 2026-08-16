@@ -37,10 +37,12 @@ jobs:
           # preset yet), so only a fail is a build failure here.
           set +e
           node bin/cli.mjs doctor
-          code=$?
-          set -e
-          test "$code" -lt 2 || { echo "doctor reported a fail (exit $code)"; exit 1; }
+          text_code=$?
           node bin/cli.mjs doctor --json > doctor.json
+          json_code=$?
+          set -e
+          test "$text_code" -lt 2 || { echo "doctor reported a fail (exit $text_code)"; exit 1; }
+          test "$json_code" = "$text_code" || { echo "text exit $text_code but json exit $json_code"; exit 1; }
           node -e "
             const e = require('./doctor.json')
             if (e.schema !== 'dsh-doctor/v1') throw new Error('bad schema ' + e.schema)

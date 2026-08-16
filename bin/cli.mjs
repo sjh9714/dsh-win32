@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 
@@ -79,6 +79,17 @@ function scanKoffi() {
   return results
 }
 
+/**
+ * True for `Git\bin\bash.exe`, the 47KB wrapper that respawns the real shell
+ * in `Git\usr\bin`. Note that the real path also ends in `\bin\bash.exe`,
+ * so the `usr` segment is what tells them apart and matching only the tail
+ * flags the correct shell as the wrapper.
+ */
+export function isBashWrapper(path) {
+  const normalized = path.replaceAll('\\', '/')
+  return /\/bin\/bash\.exe$/i.test(normalized) && !/\/usr\/bin\/bash\.exe$/i.test(normalized)
+}
+
 /** Every win32 name below is meaningless elsewhere, hence `skip`. */
 const NOT_WINDOWS = 'win32 only, not applicable on this platform'
 
@@ -107,7 +118,7 @@ function collectChecks() {
   }
 
   if (gitBash === undefined) add('git_bash', 'fail', 'Git Bash not found. Install from https://git-scm.com (winget install Git.Git), then re-run')
-  else if (/\\bin\\bash\.exe$/i.test(gitBash)) add('git_bash', 'warn', `${gitBash} is the 47KB wrapper, not the real shell; the PTY pid lands on the wrapper (see #7)`)
+  else if (isBashWrapper(gitBash)) add('git_bash', 'warn', `${gitBash} is the 47KB wrapper, not the real shell; the PTY pid lands on the wrapper (see #7)`)
   else add('git_bash', 'pass', gitBash)
 
   const pwsh7 = findPwsh7()
@@ -303,14 +314,21 @@ async function setup(args) {
   }
 }
 
-const [, , command, ...rest] = process.argv
-if (command === 'setup') await setup(rest)
-else if (command === 'fix') fix()
-else if (command === 'doctor' || command === undefined) {
-  // Exit codes apply to a direct `doctor` run only. `setup` calls doctor for
-  // its report and decides for itself whether a finding is fatal.
-  process.exitCode = doctor({ json: rest.includes('--json') }).exitCode
-} else {
-  console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json]|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
-  process.exit(1)
+async function main([command, ...rest]) {
+  if (command === 'setup') await setup(rest)
+  else if (command === 'fix') fix()
+  else if (command === 'doctor' || command === undefined) {
+    // Exit codes apply to a direct `doctor` run only. `setup` calls doctor for
+    // its report and decides for itself whether a finding is fatal.
+    process.exitCode = doctor({ json: rest.includes('--json') }).exitCode
+  } else {
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json]|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+    process.exit(1)
+  }
+}
+
+// Only dispatch when run as the CLI. The test suite imports this module for
+// its exports and must not trigger a command as a side effect.
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main(process.argv.slice(2))
 }

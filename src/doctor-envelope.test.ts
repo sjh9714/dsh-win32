@@ -25,6 +25,20 @@ function runDoctor(): { envelope: any, exitCode: number } {
   }
 }
 
+// Windows CI caught this shipping inverted: the real shell lives at
+// Git\usr\bin\bash.exe, which also ends in \bin\bash.exe, so a tail-only match
+// told every correctly installed user their shell was the 47KB wrapper.
+describe('isBashWrapper', () => {
+  it('accepts the real shell and rejects only the wrapper', async () => {
+    const { isBashWrapper } = await import('../bin/cli.mjs' as string)
+    expect(isBashWrapper('C:\\Program Files\\Git\\usr\\bin\\bash.exe')).toBe(false)
+    expect(isBashWrapper('C:/Program Files/Git/usr/bin/bash.exe')).toBe(false)
+    expect(isBashWrapper('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true)
+    expect(isBashWrapper('C:/Program Files/Git/bin/bash.exe')).toBe(true)
+    expect(isBashWrapper('/bin/bash')).toBe(false)
+  })
+})
+
 describe('dsh-doctor/v1 envelope', () => {
   it('emits the contract envelope', () => {
     const { envelope } = runDoctor()
