@@ -25,7 +25,7 @@ First-class Windows for DeepSeek Harness.
 
 ![a persistent shell inside the workspace-write sandbox](./assets/shot-persistent-sandboxed.png)
 
-A real screenshot rather than a diagram. The permission badge reads `Workspace Write`, and the shell variable set in the first tool call is still there in the second.
+A real screenshot rather than a diagram. The sandboxed preset runs a whole bug fix at `Workspace Write`, running the tests to see them fail, reading the source to find `sub` written as addition, fixing it, and running again for `all tests passed`. The metrics line at the bottom and the session list on the left are real data from the same frame.
 
 ## Why this exists
 
