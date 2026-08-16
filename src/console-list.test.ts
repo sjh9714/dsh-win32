@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { parseConsoleProcessList } from './console-list.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { ConsoleProbeInternals } from './console-list.ts'
+import { parseConsoleProcessList, queryConsoleProcessList, setConsoleProbeWarn } from './console-list.ts'
 
 describe('parseConsoleProcessList', () => {
   it('reads the helper payload', () => {
@@ -20,5 +21,76 @@ describe('parseConsoleProcessList', () => {
 
   it('accepts an empty list, which is a real console state', () => {
     expect(parseConsoleProcessList('{"pids":[],"self":9}')).toEqual({ pids: [], self: 9 })
+  })
+})
+
+describe('the probe says when it has gone permanently quiet', () => {
+  const LIST = '{"pids":[1,2],"self":1}'
+  /** Wiring a sink also clears the latches, so each case starts fresh. */
+  const collect = (): string[] => {
+    const warnings: string[] = []
+    setConsoleProbeWarn(message => warnings.push(message))
+    return warnings
+  }
+  const probe = (over: Partial<ConsoleProbeInternals>): ConsoleProbeInternals => ({
+    helper: () => 'helper.cjs',
+    run: () => LIST,
+    ...over,
+  })
+  const query = (internals: ConsoleProbeInternals, times: number): void => {
+    for (let i = 0; i < times; i++) queryConsoleProcessList(1234, 5_000, internals)
+  }
+
+  afterEach(() => { setConsoleProbeWarn(undefined) })
+
+  it('warns once when the helper cannot be prepared at all, however many probes follow', () => {
+    const warnings = collect()
+    query(probe({ helper: () => undefined }), 10)
+    expect(warnings).toHaveLength(1)
+    // Names the consequence, since the symptom is #7, #11 and #24 returning at once.
+    expect(warnings[0]).toMatch(/fall back to parent links/)
+  })
+
+  it('stays quiet for an isolated failure, which is the ordinary exiting-shell race', () => {
+    const warnings = collect()
+    query(probe({ run: () => { throw new Error('AttachConsole failed') } }), 1)
+    expect(warnings).toEqual([])
+  })
+
+  it('warns once on a run of failures, and not again as the run continues', () => {
+    const warnings = collect()
+    const failing = probe({ run: () => { throw new Error('AttachConsole failed') } })
+    query(failing, 3)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/AttachConsole failed/)
+    query(failing, 50)
+    expect(warnings).toHaveLength(1)
+  })
+
+  it('counts a run, not a total, so occasional races never accumulate into one', () => {
+    const warnings = collect()
+    let calls = 0
+    // Fails twice, succeeds, fails twice, succeeds — never three in a row.
+    const flaky = probe({
+      run: () => {
+        if (calls++ % 3 === 2) return LIST
+        throw new Error('AttachConsole failed')
+      },
+    })
+    query(flaky, 30)
+    expect(warnings).toEqual([])
+  })
+
+  it('treats output it cannot read as a failure, since the caller gets nothing either way', () => {
+    const warnings = collect()
+    query(probe({ run: () => 'not json' }), 3)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toMatch(/output this build cannot read/)
+  })
+
+  it('returns the list and reports nothing while the probe works', () => {
+    const warnings = collect()
+    expect(queryConsoleProcessList(1234, 5_000, probe({}))).toEqual({ pids: [1, 2], self: 1 })
+    expect(warnings).toEqual([])
   })
 })

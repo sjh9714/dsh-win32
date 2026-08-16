@@ -11,6 +11,7 @@
 import { spawnSync } from 'node:child_process'
 import type { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
+import { setConsoleProbeWarn } from './console-list.ts'
 import { WindowsProcessInspector } from './inspector.ts'
 import { installPresets } from './preset-install.ts'
 import { collectStream } from './shell-decode.ts'
@@ -18,8 +19,8 @@ import { patchTerminalKill, wrapTerminalHandle } from './terminal-wrap.ts'
 
 export { WindowsProcessInspector } from './inspector.ts'
 export type { ProcessIdentity, WindowsInspectorInternals } from './inspector.ts'
-export { parseConsoleProcessList, queryConsoleProcessList } from './console-list.ts'
-export type { ConsoleProcessList } from './console-list.ts'
+export { parseConsoleProcessList, queryConsoleProcessList, setConsoleProbeWarn } from './console-list.ts'
+export type { ConsoleProcessList, ConsoleProbeInternals } from './console-list.ts'
 export { wrapTerminalHandle } from './terminal-wrap.ts'
 export { findGitBash, installPreset, installPresets, busyboxPath, dshHome } from './preset-install.ts'
 export type { InstallOutcome, PresetId } from './preset-install.ts'
@@ -30,6 +31,12 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
   constructor(ctx: Context) {
     super(ctx)
     if (process.platform === 'win32') {
+      // The console probe degrades quietly on purpose, because probing a shell
+      // that is already exiting is an ordinary race. A probe that can never
+      // answer is not, and it silently reverts descendants and signal fan-out
+      // to parent links — which MSYS severs — so it has to be sayable. One line
+      // per process; see setConsoleProbeWarn for why it is not per probe.
+      setConsoleProbeWarn(message => { ctx.logger?.warn?.(message) })
       // Field is the runtime's designed injection seam; production otherwise
       // resolves an inspector lazily per PTY spawn and throws on win32.
       this.terminalInspector = new WindowsProcessInspector() as typeof this.terminalInspector

@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import { Context } from '@deepseek-ai/cordis'
+import { queryConsoleProcessList } from '../lib/console-list.js'
 import WindowsSubprocessRuntime from '../lib/index.js'
 
 if (process.platform !== 'win32') {
@@ -33,7 +34,7 @@ function findBash() {
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-function stagePids() {
+function namedPids() {
   try {
     const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
       'Get-CimInstance Win32_Process -Property ProcessId,Name'
@@ -45,9 +46,41 @@ function stagePids() {
   }
 }
 
+/**
+ * The pipeline's stages, and only those.
+ *
+ * A machine-wide name filter is not an identity. Any `sleep` or `cat` anywhere on
+ * the box lands in it, so a background job that starts inside the 2.5s window is
+ * counted as a stage and one that outlives the SIGTERM is reported as a survivor.
+ * Measured on a workstation with unrelated poll loops running: stage counts of 3,
+ * 4, 5 and 7 for the same three-stage pipeline, with false survivors each time,
+ * against a clean 3 and 0 on an idle box. That is the #27 shape — a fixture whose
+ * relationship to the thing under test is accidental — and it reports the failure
+ * this smoke exists to catch when nothing is wrong.
+ *
+ * The console is the terminal's identity, so intersecting with its process list
+ * scopes the filter to this terminal. Returns undefined when the console cannot
+ * be read, which the caller treats as "cannot attribute" rather than "none".
+ */
+function stagePids(shellPid) {
+  const attached = queryConsoleProcessList(shellPid)
+  if (attached === undefined) return undefined
+  const onConsole = new Set(attached.pids)
+  return new Set([...namedPids()].filter(pid => onConsole.has(pid)))
+}
+
+function requireStages(shellPid, when) {
+  const pids = stagePids(shellPid)
+  if (pids === undefined) {
+    console.error(`FAIL:\n  the console probe could not read the terminal's process list ${when},`
+      + ' so stages cannot be attributed to this pipeline')
+    process.exit(1)
+  }
+  return pids
+}
+
 const ctx = new Context()
 await ctx.plugin(WindowsSubprocessRuntime)
-const before = stagePids()
 const handle = await ctx.subprocess.spawnTerminal({
   argv: [findBash(), '--noprofile', '--norc', '-i'],
   cwd: process.cwd(),
@@ -57,15 +90,18 @@ const handle = await ctx.subprocess.spawnTerminal({
 })
 handle.output.on('data', () => {})
 await delay(1500)
+// Nothing of ours is on this console yet; anything here is the shell's own doing.
+const before = requireStages(handle.pid, 'before the pipeline started')
 
 await handle.write('sleep 90 | cat | cat\n')
 await delay(2500)
-const started = [...stagePids()].filter(pid => !before.has(pid))
+const started = [...requireStages(handle.pid, 'after the pipeline started')].filter(pid => !before.has(pid))
 console.log(`  pipeline stages running: ${started.length} (${started.join(', ')})`)
 
 await handle.signalForeground('SIGTERM')
 await delay(2500)
-const survivors = started.filter(pid => stagePids().has(pid))
+const alive = requireStages(handle.pid, 'after SIGTERM')
+const survivors = started.filter(pid => alive.has(pid))
 console.log(`  still running after SIGTERM: ${survivors.length}${survivors.length > 0 ? ` (${survivors.join(', ')})` : ''}`)
 
 try {
@@ -74,8 +110,9 @@ try {
   console.log(`  terminate: ${error.message}`)
 }
 await ctx.fiber.dispose()
-for (const pid of stagePids()) {
-  if (!started.includes(pid)) continue
+// The console is gone with the shell, so sweep the pids we recorded rather than
+// re-reading it. Already-dead pids make taskkill fail, which is the normal case.
+for (const pid of started) {
   try { execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }) } catch { /* gone */ }
 }
 
