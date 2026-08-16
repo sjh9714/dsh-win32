@@ -18,9 +18,15 @@ busybox-w32 ash 没有 cygheap 初始化，能在受限令牌里活下来。wind
 npx dsh-win32 setup --sandboxed   # 然后选预设「Minimal (Windows, sandboxed)」
 ```
 
+![沙箱内的持久 shell](./assets/shot-persistent-sandboxed.png)
+
+真机截图，不是示意图。权限徽章是 `Workspace Write`，两次独立的工具调用之间 shell 变量活着。
+
 **② 极简模式真正可用**
 
 官方 subprocess 运行时在 win32 上起 PTY 之前就抛 `terminal inspection is unsupported on platform win32`，持久 shell 和依赖它的极简模式整个不可用（官方架构笔记里标为待补项）。我们通过官方注入座补上 win32 ProcessInspector（进程树用 CIM，信号用 taskkill），**不改核心一行代码**。取消命令走 ConPTY 惯例的 Ctrl-C 注入，不再把会话打成 transport failure。
+
+![Windows 上真正可用的极简模式](./assets/shot-persistent-gitbash.png)
 
 **③ 前台命令识别**（v0.7 起，社区贡献）
 
@@ -49,6 +55,8 @@ npx dsh-win32 setup              # bundle + 预设 + 体检
 npx dsh-win32 setup --sandboxed  # 额外装沙箱内可用的 busybox 变体
 npx dsh-win32 setup --shortcut   # 额外建桌面快捷方式
 ```
+
+![预设选择器](./assets/shot-preset-picker.png)
 
 预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
 
@@ -85,7 +93,7 @@ npx dsh-win32 doctor --json
 - 旧编码文件的编辑会保存为 UTF-8，不做往返。
 - PTY 输出的旧代码页在插件层无法解码：node-pty 在任何 DSH 代码运行之前就按 UTF-8 解码，且在 Windows 上拒绝编码覆盖。随附 shell 默认 UTF-8，所以预设不受影响。
 - `foregroundPgid` 只能返回一个 pid，但管道的每一段都附着在控制台上。它取最新的那个附着，所以对 `a | b | c` 发 SIGTERM/SIGKILL 会树杀选中的那一段和它的子进程，其余各段要等管道断掉才结束，而 POSIX 靠共享 pgid 能一次全打到。SIGINT 不受影响，它走 Ctrl-C 注入，由 shell 自己把信号发给整个作业。取最新而不是最老是有意的，后台作业比前台命令更老，取最老会打错目标，还会在 shell 已经回到提示符时报告前台繁忙，那正是 [#7](https://github.com/sjh9714/dsh-win32/issues/7) 说的判别器失效。跟踪在 [#11](https://github.com/sjh9714/dsh-win32/issues/11)。
-- 官方 bash 工具把每条命令包成 `eval -- '...'`，而 `eval --` 是 bash 特有的写法，POSIX shell 不接受，busybox ash 会把 `--` 当成命令名，于是沙箱预设里每条命令都以 `eval: --: not found`（exit 127）失败（[#12](../../issues/12)，实测 busybox-w32 v1.38，在 dash 上同样复现，所以不是 busybox 的怪癖）。`eval` 是特殊内建，没法用函数覆盖（`Bad function name`），所以我们在写入 PTY 的那一层把它改写成等价的可移植形式（引号内加一个前导空格）。这个改写只匹配官方包装器的完整形状，对 bash 行为完全等价（包括 `--` 本来要防的「命令以 `-` 开头」那种情况）。已上报 [deepseek-harness#2271](https://github.com/deepseek-ai/deepseek-harness/discussions/2271)，官方修好后我们这段就删掉。
+- 官方 bash 工具把每条命令包成 `eval -- $'...'`（注意 `$`，`quoteForBash` 用的是 ANSI-C 引用），而 `eval --` 是 bash 特有的写法，POSIX shell 不接受，busybox ash 会把 `--` 当成命令名，于是沙箱预设里每条命令都以 `eval: --: not found`（exit 127）失败（[#12](../../issues/12)，实测 busybox-w32 v1.38，在 dash 上同样复现，所以不是 busybox 的怪癖）。`eval` 是特殊内建，没法用函数覆盖（`Bad function name`），所以我们在写入 PTY 的那一层把它改写成等价的可移植形式（引号内加一个前导空格）。那个 `$` 是关键。0.8.1 的改写把锚点写成了普通单引号，和生产字符串对不上，于是一次都没触发，沙箱预设在「已修复」的说法下继续死着，直到 0.9.1 才真的修好。这个改写只匹配官方包装器的完整形状，对 bash 行为完全等价（包括 `--` 本来要防的「命令以 `-` 开头」那种情况）。已上报 [deepseek-harness#2271](https://github.com/deepseek-ai/deepseek-harness/discussions/2271)，官方修好后我们这段就删掉。
 - `isStdinWaiting` 恒为 false。Windows 没有可靠的「控制台读阻塞」探测，假装有会把还在跑的命令判成结束。
 - 基于 DSH `0.1.0-rc.6` 开发，rc 更新会快速跟进。
 
