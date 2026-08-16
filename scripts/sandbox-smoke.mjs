@@ -83,7 +83,7 @@ try {
   const spawned = await ctx.terminals.spawn(agent, { type: 'shell', name: 'main', cwd: root })
   console.log(`sandboxed pty spawned on ${process.platform} (mode=${MODE}): terminal ${String(spawned.sessionId)}`)
   const marker = `sbx-${process.pid}`
-  ctx.terminals.startSend(agent, spawned.sessionId, { text: `echo ${marker}:$((6*7)):$(pwd)`, submit: true })
+  const firstSend = ctx.terminals.startSend(agent, spawned.sessionId, { text: `echo ${marker}:$((6*7)):$(pwd)`, submit: true })
   const expected = `${marker}:42:`
   const deadline = Date.now() + 40_000
   let text = ''
@@ -104,6 +104,9 @@ try {
   // rejects, so the plain round-trip passed while every real command failed
   // with exit 127 (#12). Exercise the wrapped shape too.
   if (exitCode === 0) {
+    // One send at a time per session; startSend throws SEND_ACTIVE otherwise.
+    // Seeing the marker in the scrollback does not mean the operation settled.
+    await firstSend.done.catch(() => {})
     const wrapMarker = `wrapped-${process.pid}`
     const wrapped = `printf '%s\\n' 'S-${wrapMarker}'; eval -- 'echo ${wrapMarker}:$((6*7))'`
       + `; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E-${wrapMarker}:' "$__dsh_persistent_bash_status"`
