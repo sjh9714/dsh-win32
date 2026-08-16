@@ -74,15 +74,33 @@ await delay(1500)
 const after = await handle.inspectForeground()
 const backToShell = after !== undefined && after.processGroupId === handle.pid
 
+// A backgrounded job stays attached to the console for its whole life, so an
+// idle shell still has a candidate. Resolution has to survive that or every
+// later command in the session settles on the silence timeout instead of the
+// prompt (#11). Poll while the foreground command runs, because the answer is
+// derived from watching it appear and go, not from one reading.
+await handle.write('sleep 300 &\n')
+await delay(1500)
+await handle.write('sleep 3\n')
+for (let i = 0; i < 12; i += 1) {
+  await handle.inspectForeground()
+  await delay(250)
+}
+const withJob = await handle.inspectForeground()
+const idleDespiteJob = withJob !== undefined && withJob.processGroupId === handle.pid
+console.log(`  foreground with a background job: ${withJob?.processGroupId} (shell is ${handle.pid})`)
+
 await handle.terminate()
 await ctx.fiber.dispose()
 
-if (!idleIsShell || !busyIsCommand || !backToShell) {
-  console.error(`FAIL: idleIsShell=${idleIsShell} busyIsCommand=${busyIsCommand} backToShell=${backToShell}`)
+if (!idleIsShell || !busyIsCommand || !backToShell || !idleDespiteJob) {
+  console.error(`FAIL: idleIsShell=${idleIsShell} busyIsCommand=${busyIsCommand}`
+    + ` backToShell=${backToShell} idleDespiteJob=${idleDespiteJob}`)
   process.exit(1)
 }
 console.log('ok: idle resolves to the shell itself')
 console.log('ok: a running command resolves to the command, not the shell')
 console.log('ok: the shell is foreground again after the interrupt')
+console.log('ok: an idle shell still resolves to itself beside a background job')
 // ConPTY handles keep the event loop alive after dispose on win32; exit explicitly.
 process.exit(0)

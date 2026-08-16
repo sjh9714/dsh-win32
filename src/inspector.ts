@@ -57,6 +57,25 @@ interface ProcessRow extends ProcessIdentity {
   ppid: number
 }
 
+/**
+ * Per-terminal memory for foreground resolution.
+ *
+ * The console list answers "attached to this console", not "owns the
+ * foreground", and Windows has no query for the latter. A backgrounded job stays
+ * attached for its whole life, so a point-in-time read cannot tell it from the
+ * command the user is waiting on. The difference only shows over time: a
+ * foreground command exits before the shell takes the terminal back, a
+ * background job does not.
+ */
+interface TerminalForegroundState {
+  /** Attachments known to be background jobs. */
+  resting: Set<number>
+  /** Attachments seen on the previous call. */
+  previous: Set<number>
+  /** Pid last reported as the foreground, if any. */
+  reported: number | undefined
+}
+
 /** FILETIME ticks exceed Number.MAX_SAFE_INTEGER, so compare them as BigInt. */
 function startedAfter(a: string, b: string): boolean {
   try {
@@ -68,6 +87,7 @@ function startedAfter(a: string, b: string): boolean {
 
 export class WindowsProcessInspector {
   private cached: { at: number, rows: ProcessRow[] } | undefined
+  private readonly terminals = new Map<number, TerminalForegroundState>()
 
   constructor(private readonly internals: WindowsInspectorInternals = DEFAULT_INTERNALS) {}
 
@@ -149,14 +169,73 @@ export class WindowsProcessInspector {
    */
   foregroundPgid(shellPid: number): number | undefined {
     const list = this.internals.consoleProcessList(shellPid)
-    if (list === undefined) return undefined
+    if (list === undefined) {
+      this.forgetTerminal(shellPid)
+      return undefined
+    }
     const candidates = list.pids.filter(pid => pid !== shellPid && pid !== list.self)
-    if (candidates.length === 0) return shellPid
-    if (candidates.length === 1) return candidates[0]
-    // A pipeline attaches every stage to the console, so there is no single
-    // correct answer when collapsing a group onto one pid. The most recently
-    // started attachment is the closest stand-in for "what is running now".
-    return this.newestOf(candidates) ?? candidates[0]
+    const attached = new Set(candidates)
+    const state = this.terminalState(shellPid)
+    const previous = state.previous
+
+    // A resting pid that has exited stops resting. Presence is enough here: the
+    // entry is dropped on the first poll after the exit, so the window in which
+    // a recycled pid could inherit resting status is one poll interval.
+    for (const pid of state.resting) {
+      if (!attached.has(pid)) state.resting.delete(pid)
+    }
+
+    // Absorption. When the command we last reported as foreground exits, every
+    // attachment that coexisted with it was, by definition, running alongside a
+    // foreground command, so it is a background job. Restricting this to pids
+    // seen in the previous observation keeps a command that started in the same
+    // interval from being absorbed with them.
+    if (state.reported !== undefined && !attached.has(state.reported)) {
+      for (const pid of candidates) {
+        if (previous.has(pid)) state.resting.add(pid)
+      }
+      state.reported = undefined
+    }
+    state.previous = attached
+
+    const fresh = candidates.filter(pid => !state.resting.has(pid))
+    if (fresh.length === 0) {
+      // Only background jobs are attached, so the shell owns the terminal.
+      state.reported = undefined
+      return shellPid
+    }
+    // Nothing new has attached, so the command already reported stays the answer.
+    // The console list outlives process exit by a poll or two while `newestOf`
+    // reads a CIM snapshot that does not, so without this the pick falls back to
+    // an older attachment (a background job) while the real foreground lingers.
+    // That rewrites `reported` and destroys the disappearance absorption needs,
+    // which is how a background job stayed "foreground" for a whole session.
+    // The guard is conditional on nothing having appeared, or the first job put
+    // in the background would be held as the answer forever.
+    const appeared = fresh.some(pid => !previous.has(pid))
+    if (!appeared && state.reported !== undefined && fresh.includes(state.reported)) {
+      return state.reported
+    }
+    // A pipeline attaches every stage, so there is no single correct answer when
+    // collapsing a group onto one pid. The most recently started attachment is
+    // the closest stand-in for "what is running now".
+    const pick = fresh.length === 1 ? fresh[0]! : (this.newestOf(fresh) ?? fresh[0]!)
+    state.reported = pick
+    return pick
+  }
+
+  private terminalState(shellPid: number): TerminalForegroundState {
+    let state = this.terminals.get(shellPid)
+    if (state === undefined) {
+      state = { resting: new Set(), previous: new Set(), reported: undefined }
+      this.terminals.set(shellPid, state)
+    }
+    return state
+  }
+
+  /** Drop per-terminal state once its console can no longer be read. */
+  private forgetTerminal(shellPid: number): void {
+    this.terminals.delete(shellPid)
   }
 
   /** Most recently started of `pids`, by start identity. Undefined if none are known. */
