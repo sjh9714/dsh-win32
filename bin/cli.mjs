@@ -84,31 +84,31 @@ function doctor() {
 
   const [major, minor] = process.versions.node.split('.').map(Number)
   if (major > 22 || (major === 22 && minor >= 19)) ok(`node ${process.versions.node}`)
-  else bad(`node ${process.versions.node} — DSH needs ^22.19.0 || >=24`)
+  else bad(`node ${process.versions.node}. DSH needs ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
 
   const gitBash = WIN ? findGitBash() : undefined
   if (WIN) {
     if (gitBash !== undefined) ok(`Git Bash: ${gitBash}`)
-    else bad('Git Bash not found — install from https://git-scm.com (winget install Git.Git), then re-run')
+    else bad('Git Bash not found. Install from https://git-scm.com (winget install Git.Git), then re-run')
 
     const pwsh7 = findPwsh7()
     if (pwsh7 !== undefined) ok(`PowerShell 7: ${pwsh7}`)
-    else warn('PowerShell 7 not found — the Windows 5.1 fallback crashes (0xC0000142) inside the DSH sandbox; winget install Microsoft.PowerShell')
+    else warn('PowerShell 7 not found. The Windows 5.1 fallback crashes (0xC0000142) inside the DSH sandbox; winget install Microsoft.PowerShell')
 
     for (const { profile, version } of scanKoffi()) {
       if (version === '3.1.3' || version === '3.1.4') {
-        warn(`koffi ${version} in profile "${profile}" — broken win32-x64 prebuilt (install failures, folder-picker and session-save crashes)`)
+        warn(`koffi ${version} in profile "${profile}", a broken win32-x64 prebuilt (install failures, folder-picker and session-save crashes)`)
         info(`fix: cd "${join(DSH_HOME, 'profiles', profile)}" && pnpm add koffi@3.1.2 --ignore-scripts`)
       } else {
         ok(`koffi ${version} in profile "${profile}"`)
       }
     }
   } else {
-    info('not Windows — doctor checks the Windows traps only when run there')
+    info('not Windows, so doctor checks the Windows traps only when run there')
   }
 
   if (WIN) {
-    warn('mode matters: the Git Bash preset (minimal-windows) needs danger-full-access — MSYS bash dies inside the workspace-write sandbox')
+    warn('mode matters. The Git Bash preset (minimal-windows) needs danger-full-access, because MSYS bash dies inside the workspace-write sandbox')
     info('to stay sandboxed, install the busybox variant: npx dsh-win32 setup --sandboxed  (then pick "Minimal (Windows, sandboxed)")')
   }
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
@@ -149,7 +149,7 @@ function ensureBundle() {
 function fix() {
   const broken = scanKoffi().filter(({ version }) => version === '3.1.3' || version === '3.1.4')
   if (broken.length === 0) {
-    ok('nothing to fix — no broken koffi prebuilt found in any profile')
+    ok('nothing to fix, no broken koffi prebuilt found in any profile')
     return
   }
   for (const { profile, version } of broken) {
@@ -178,7 +178,7 @@ async function ensureBusybox() {
   const target = join(DSH_HOME, 'dsh-win32', 'busybox64.exe')
   if (existsSync(target)) return target
   console.log(`downloading busybox-w32 (GPLv2, single executable) from ${BUSYBOX_URL}`)
-  console.log('project: https://frippery.org/busybox — not bundled with dsh-win32, fetched on demand')
+  console.log('project https://frippery.org/busybox, not bundled with dsh-win32, fetched on demand')
   mkdirSync(dirname(target), { recursive: true })
   let response
   try {
@@ -188,7 +188,7 @@ async function ensureBusybox() {
     console.error('download busybox64.exe manually and pass it: npx dsh-win32 setup --sandboxed --busybox <path>')
     throw error
   }
-  if (!response.ok) throw new Error(`busybox download failed: HTTP ${response.status} — or pass --busybox <path> manually`)
+  if (!response.ok) throw new Error(`busybox download failed with HTTP ${response.status}. Pass --busybox <path> to use a local copy instead`)
   writeFileSync(target, Buffer.from(await response.arrayBuffer()))
   return target
 }
@@ -220,7 +220,7 @@ async function setup(args) {
     try {
       ensureBundle()
     } catch {
-      warn('bundle wiring failed — the preset still installs below; wire the bundle manually with:')
+      warn('bundle wiring failed. The preset still installs below; wire the bundle manually with')
       info('npx --yes @deepseek-ai/dsh plugin --profile web add -w dsh-win32')
     }
   }
@@ -255,6 +255,6 @@ if (command === 'setup') await setup(rest)
 else if (command === 'fix') fix()
 else if (command === 'doctor' || command === undefined) doctor()
 else {
-  console.error(`unknown command ${JSON.stringify(command)} — use: dsh-win32 [doctor|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+  console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
   process.exit(1)
 }
