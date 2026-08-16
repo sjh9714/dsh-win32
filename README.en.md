@@ -40,7 +40,7 @@ npx dsh-win32 setup              # bundle + preset + health report
 npx dsh-win32 setup --shortcut   # same, plus the desktop shortcut
 ```
 
-The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`).
+The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). Wiring the bundle also needs pnpm, because `dsh plugin add` installs into the profile directory with it. `setup` enables pnpm through corepack when it is missing, and `doctor` reports it either way.
 
 Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
 

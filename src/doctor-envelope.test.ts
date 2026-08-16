@@ -98,4 +98,15 @@ describe('dsh-doctor/v1 envelope', () => {
       expect(byName[name]).toBe('skip')
     }
   })
+
+  // #13: a clean box has node and Git but no pnpm, and the bundle wiring dies
+  // on it with a bare "'pnpm' is not recognized". The check is platform-
+  // agnostic, so it must report a real status everywhere rather than joining
+  // the win32 skip list whose count the CI envelope gate asserts on.
+  it('reports pnpm on every platform, never as a skip', () => {
+    const { envelope } = runDoctor()
+    const pnpm = envelope.checks.find((c: any) => c.name === 'pnpm')
+    expect(pnpm).toBeDefined()
+    expect(['pass', 'warn']).toContain(pnpm.status)
+  })
 })
