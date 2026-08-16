@@ -88,6 +88,18 @@ describe('ConfinedWin32FileSystem', () => {
     }
   })
 
+  it('is a pass-through under danger-full-access, so the Git Bash preset can mount it too', async () => {
+    const ws = workspace()
+    const fs = await mount(ConfinedWin32FileSystem, 'danger-full-access', ws)
+    const { dir, file } = offTempFile('ORIGINAL\n')
+    try {
+      await fs.writeText(await fs.resolve(file), 'ALLOWED\n')
+      expect(readFileSync(file, 'utf8')).toBe('ALLOWED\n')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('still decodes GBK on read, which is the whole point of keeping our backend', async () => {
     const ws = workspace()
     const fs = await mount(ConfinedWin32FileSystem, 'read-only', ws)

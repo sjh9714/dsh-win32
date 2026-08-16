@@ -52,10 +52,18 @@
   isolate:
     fs: true
   config:
-    # dsh-win32/fs = fs-local plus transparent GBK/UTF-16 READ decoding
-    # (legacy files edit back as UTF-8; documented in the dsh-win32 README).
+    # dsh-win32/fs-confined = fs-sandbox plus transparent GBK/UTF-16 READ
+    # decoding (legacy files edit back as UTF-8; documented in the README).
+    #
+    # This preset needs danger-full-access for its SHELL, because MSYS bash
+    # cannot start under the restricted token. The EDITOR is a separate tool
+    # and works regardless, so a session left on Read Only would otherwise get
+    # a broken shell next to an editor that can rewrite anything on the box
+    # (deepseek-harness#2066). Under danger-full-access the fence is a
+    # pass-through, so mounting it here costs nothing in the intended mode and
+    # closes the hole in the unintended one.
     - id: fs-win32
-      name: 'dsh-win32/fs'
+      name: 'dsh-win32/fs-confined'
       config:
         cwd: !!js process.env.DSH_CWD ?? process.cwd()
 

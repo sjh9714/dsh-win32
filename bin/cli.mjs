@@ -170,13 +170,16 @@ function collectChecks() {
   // anywhere while the badge says Read Only (deepseek-harness#2066). Our
   // sandboxed preset mounts the confining backend instead, but a preset
   // installed by an older CLI still has the unfenced one on disk.
-  const sandboxedYml = join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed', 'agent.cordis.yml')
-  if (!existsSync(sandboxedYml)) {
-    add('write_fence', 'skip', 'minimal-windows-sandboxed is not installed')
-  } else if (readFileSync(sandboxedYml, 'utf8').includes('dsh-win32/fs-confined')) {
-    add('write_fence', 'pass', 'the sandboxed preset fences editor writes by the session permission mode')
+  const installed = ['minimal-windows', 'minimal-windows-sandboxed']
+    .map((name) => ({ name, yml: join(DSH_HOME, '.agent-presets', name, 'agent.cordis.yml') }))
+    .filter(({ yml }) => existsSync(yml))
+  const unfenced = installed.filter(({ yml }) => !readFileSync(yml, 'utf8').includes('dsh-win32/fs-confined'))
+  if (installed.length === 0) {
+    add('write_fence', 'skip', 'no dsh-win32 preset is installed')
+  } else if (unfenced.length === 0) {
+    add('write_fence', 'pass', `${installed.map(({ name }) => name).join(', ')} fence editor writes by the session permission mode`)
   } else {
-    add('write_fence', 'warn', 'the installed sandboxed preset predates the write fence, so str_replace_editor can write outside the workspace under Read Only. Re-run: npx dsh-win32 setup --sandboxed')
+    add('write_fence', 'warn', `${unfenced.map(({ name }) => name).join(', ')} predates the write fence, so str_replace_editor can write outside the workspace under Read Only. Re-run: npx dsh-win32 setup`)
   }
 
   return { checks, gitBash }

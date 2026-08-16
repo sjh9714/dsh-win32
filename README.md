@@ -53,7 +53,7 @@ Windows 上选极简模式会直接报错，持久 shell 和依赖它的极简�
 
 Windows 上没法直接问「终端里现在跑着什么」，所以 Agent 会把还在跑的命令当成已结束。改成从 ConPTY 控制台进程列表解析后修好了，约 81ms。
 
-**④ 沙箱预设里，Read Only 真的是只读**（v0.11 起）
+**④ Read Only 真的是只读**（v0.11 起）
 
 官方极简模式挂的是裸 `fs-local`，它不上报 `sandboxMode`。而 `str_replace_editor` 正是读这个值来决定要不要建写入策略。
 
@@ -66,7 +66,7 @@ this.policy = ctx.fs.sandboxMode === undefined ? undefined : ctx.get('sandboxPol
 
 沙箱预设换成了会围栏的后端，GBK/UTF-16 读取解码照旧。`read-only` 拒绝一切写入，`workspace-write` 拒绝工作区、`/tmp`、系统临时目录之外的写入。`npx dsh-win32 doctor` 里的 `write_fence` 一项会告诉你装的是哪个版本。
 
-Git Bash 预设不带围栏，因为它本来就要求 `danger-full-access`，那个模式下所有写入都是放行的。
+两个预设都换成了会围栏的后端。Git Bash 预设的 **shell** 确实要求 `danger-full-access`，但**编辑器是另一个工具**，跟 shell 起没起来无关。所以徽章停在 Read Only 的会话，本来会是「shell 用不了 + 编辑器能改机器上任何文件」。`danger-full-access` 下围栏是直通的，所以这样接在预期模式下零代价，在非预期模式下把洞堵上。
 
 ## 为什么会这样
 
