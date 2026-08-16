@@ -26,3 +26,4 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host ''
 Write-Host 'Done. Start DeepSeek Harness with the desktop shortcut or: npx @deepseek-ai/dsh web'
+Write-Host 'https://github.com/sjh9714/dsh-win32  (docs, known Windows traps, and where to report what broke)'

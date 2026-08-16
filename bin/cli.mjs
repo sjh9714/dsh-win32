@@ -16,6 +16,7 @@ const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
 const PRESET_ID = 'minimal-windows'
 const PRESET_SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'preset', PRESET_ID)
+const REPO = 'https://github.com/sjh9714/dsh-win32'
 
 const ok = message => console.log(`  ok    ${message}`)
 const warn = message => console.log(`  WARN  ${message}`)
@@ -207,6 +208,7 @@ function doctor({ json = false } = {}) {
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
   info('one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)')
   info('machine-readable output: npx dsh-win32 doctor --json  (dsh-doctor/v1 envelope)')
+  info(`${REPO}  (issues and real-hardware reports welcome)`)
   return { gitBash, exitCode }
 }
 
@@ -351,6 +353,10 @@ async function setup(args) {
     createShortcut()
     console.log('created desktop shortcut "DeepSeek Harness"')
   }
+
+  console.log('')
+  console.log(`start it with: npx @deepseek-ai/dsh web`)
+  console.log(`${REPO}  (docs, known Windows traps, and where to report what broke)`)
 }
 
 async function main([command, ...rest]) {
