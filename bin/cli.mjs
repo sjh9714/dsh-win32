@@ -129,14 +129,19 @@ function collectChecks() {
   if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
   else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it. setup enables it through corepack, or: npm install -g pnpm')
 
-  // Not a vocabulary name, so it carries the vendor prefix the contract asks
-  // for. Nominated for the r5 vocabulary as `installed_bundle` (#1719). The
-  // four states below are distinguishable on purpose: "not wired", "wired but
-  // never installed" and "installed but stale" have different fixes, and
-  // folding them into one warn hands the user the wrong instruction.
+  // Still vendor-prefixed because `installed_bundle` is only nominated for
+  // r6/v1.1, not frozen (#1719). The four conditions and their statuses are
+  // the agreed ones, co-drafted with @moonquake2004.
+  //
+  // The first cell is `skip`, not `warn`. This check compares the profile's
+  // bundle against the running CLI, and with nothing listed there is no
+  // comparison to make. Reporting `pass` would let a CI script conclude "in
+  // sync" from nothing, which is the same trap that put `skip` in r5 for
+  // `git_bash` on Linux. The "go install it" nudge is a product concern and
+  // lives in the tip lines below, not in a shared vocabulary name.
   const wiredBundle = bundleVersion()
   if (wiredBundle === undefined) {
-    add('dsh-win32/bundle', 'warn', 'not wired into the web profile; run: npx dsh-win32 setup')
+    add('dsh-win32/bundle', 'skip', 'no bundle listed in the profile manifest, so there is nothing to compare the CLI against')
   } else if (wiredBundle === SELF_VERSION) {
     add('dsh-win32/bundle', 'pass', wiredBundle)
   } else if (wiredBundle === 'wired, not installed') {
@@ -144,7 +149,13 @@ function collectChecks() {
   } else if (wiredBundle === 'unreadable') {
     add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown; run: npx dsh-win32 setup')
   } else {
-    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}; the runtime lives in the bundle, so run: npx dsh-win32 setup`)
+    // The age-gate note is load bearing. A profile's pnpm-workspace.yaml
+    // carries minimumReleaseAgeExclude listing only the versions current when
+    // each bundle was wired, so for about a day after a publish the upgrade is
+    // a no-op and pnpm answers "Already up to date". Without this sentence the
+    // instruction silently does nothing and the warn looks like the user's
+    // fault.
+    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}; run: npx dsh-win32 setup. If that reports no change, the profile's pnpm minimumReleaseAgeExclude gate is holding the new version, so retry the next day`)
   }
 
   const gitBash = WIN ? findGitBash() : undefined
