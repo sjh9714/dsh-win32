@@ -8,8 +8,16 @@
  * idle terminal with no descendants, against ~1.6s once the signal argument is
  * dropped and the snapshot TTL outlives its own fill cost.
  *
- * The budget below is deliberately loose. It is a guard against the multi-grace
- * regression coming back, not a benchmark.
+ * The budget is two grace windows, because that is the exact signature of the
+ * bug: an unsignalled shell waits out both before the fallback runs, so any
+ * regression lands above it and nothing correct lands near it. It is a guard,
+ * not a benchmark, and it is deliberately not tightened to the current numbers.
+ *
+ * Those numbers moved once #24 gave `descendants()` real members. Teardown now
+ * kills what it finds instead of sweeping an empty list, and the graceful
+ * taskkill it tries first costs ~1300ms of spawn overhead per member on this
+ * box. Measured here: ~3.2s idle, ~4.7s with one background job, against ~1.6s
+ * when the sweep had nothing to do and ~20s before #23.
  *
  * Run after `npm run build`: node scripts/teardown-smoke.mjs
  */
@@ -21,9 +29,9 @@ import { Context } from '@deepseek-ai/cordis'
 import WindowsSubprocessRuntime from '../lib/index.js'
 
 const GRACE_MS = 3000
-// Two grace windows plus the retry is what the bug cost; anything under one
-// window means the shell was actually signalled.
-const BUDGET_MS = GRACE_MS
+// Both windows expiring is the failure being guarded against, so the budget sits
+// at exactly that. Real teardown work stays well under it.
+const BUDGET_MS = GRACE_MS * 2
 
 function findBash() {
   if (process.env.SMOKE_BASH !== undefined) return process.env.SMOKE_BASH
@@ -75,7 +83,7 @@ for (const [name, result] of [['idle', idle], ['background job', withJob]]) {
   if (result.failure !== undefined) problems.push(`${name} terminate threw: ${result.failure}`)
   if (result.elapsed > BUDGET_MS) {
     problems.push(`${name} teardown took ${result.elapsed}ms, over the ${BUDGET_MS}ms budget,`
-      + ' which is what an unsignalled shell waiting out a grace window looks like')
+      + ' which is what an unsignalled shell waiting out both grace windows looks like')
   }
 }
 
@@ -83,5 +91,5 @@ if (problems.length > 0) {
   console.error(`FAIL:\n  ${problems.join('\n  ')}`)
   process.exit(1)
 }
-console.log(`ok: teardown stays under one ${GRACE_MS}ms grace window, so the shell is really being signalled`)
+console.log(`ok: teardown stays under both ${GRACE_MS}ms grace windows, so the shell is really being signalled`)
 process.exit(0)
