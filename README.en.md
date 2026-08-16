@@ -130,6 +130,10 @@ Use `usr/bin/bash.exe` rather than `bin/bash.exe`. The latter is a 47KB wrapper 
 - **win32 has no graceful terminate for a console process, so `SIGTERM` escalates when the graceful form is refused.** taskkill without `/F` asks a window to close, and a console process has none, so it exits 128 and leaves the target running; the old code read that failure as "already gone", which made `SIGTERM` a no-op against every MSYS command. The graceful attempt is still made, and the escalation to a forced kill happens only when taskkill reports failure **and** the process is still alive, so a target that exits on its own is never force-killed. **Nothing is being given up here**: the graceful form cannot work on this platform at all, so the choice is a forced kill or no kill, not graceful against forced. See [#24](https://github.com/sjh9714/dsh-win32/issues/24).
 - Developed against DSH `0.1.0-rc.6`. DSH is a developer preview with breaking changes announced. version pinned, fast-patch policy on every rc bump.
 
+## Related
+
+[dsh-lean](https://github.com/sjh9714/dsh-lean) — cut the DSH prompt prefix 53% by removing the delegation, goal and job tools a single-agent session never calls. `npx dsh-lean audit` shows where your own session's tokens went, nothing installed.
+
 ## License
 
 MIT. The preset composition mirrors the official Minimal preset (MIT) with credit. Trap inventory distilled from community reports in the DSH discussions.

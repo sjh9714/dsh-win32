@@ -199,6 +199,10 @@ npx dsh-win32 doctor --json
 
 欢迎实机报告（[#3](../../issues/3) 收集不同 Windows 环境的结果）、issue 和 PR。v0.7 的前台解析就来自社区贡献。
 
+## 相关
+
+[dsh-lean](https://github.com/sjh9714/dsh-lean) — 关掉单智能体会话用不到的委派/目标/后台任务工具，把 DSH 提示词前缀压掉 53%。`npx dsh-lean audit` 什么都不装就能看自己会话的钱花在哪。
+
 ## License
 
 MIT。预设组合复刻自官方极简模式（MIT）并注明出处。踩坑清单提炼自 DSH 官方讨论区的社区报告。
