@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<!--
+  GitHub social preview, 1280x640 (the 2:1 GitHub renders and every link
+  unfurler crops toward). Follows the pattern the high-converting repos in
+  this ecosystem use: repo name large, one-line subtitle, feature chips, and
+  one visual that carries the claim. Everything is sized to survive the
+  ~300px-wide render a chat client gives a link preview.
+-->
+<style>
+  :root{
+    --bg:#0f1115; --panel:#191d22; --line:#262c33; --ink:#e9ecef; --dim:#8b939c;
+    --accent:#5b9dff; --ok:#4ade80; --fail:#f87171;
+    --sans:-apple-system,'Helvetica Neue','PingFang SC','Microsoft YaHei',Arial,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  html,body{margin:0;width:1280px;height:640px;overflow:hidden;background:var(--bg);font-family:var(--sans)}
+  #wrap{width:1280px;height:640px;box-sizing:border-box;padding:56px 60px;display:flex;gap:44px;align-items:center}
+  #left{width:560px;flex:0 0 auto}
+  #eyebrow{font-size:20px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;font-weight:600}
+  #name{margin-top:14px;font-family:var(--mono);font-size:82px;font-weight:800;color:var(--ink);letter-spacing:-2px;line-height:1}
+  #tag{margin-top:20px;font-size:30px;color:var(--accent);font-weight:700;line-height:1.35}
+  #chips{margin-top:30px;display:flex;flex-wrap:wrap;gap:12px}
+  .chip{font-size:21px;color:#cfd6dd;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:10px 20px}
+  #right{flex:1;display:flex;flex-direction:column;gap:20px}
+  .card{background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:26px 28px}
+  .card.bad{border-color:#5c2b2b}
+  .card.good{border-color:#2c5c3c}
+  .head{font-size:23px;font-weight:700;color:var(--dim);display:flex;align-items:center;gap:12px}
+  .bad .head{color:var(--fail)}
+  .good .head{color:var(--ok)}
+  .line{margin-top:14px;font-family:var(--mono);font-size:26px;line-height:1.35;color:#dde3e9;word-break:break-all}
+  .bad .line{color:#f0a5a5}
+</style>
+<div id="wrap">
+  <div id="left">
+    <div id="eyebrow">DeepSeek Harness · Windows</div>
+    <div id="name">dsh-win32</div>
+    <div id="tag">让极简模式在 Windows 上<br>真正跑起来</div>
+    <div id="chips">
+      <span class="chip">沙箱内持久 shell</span>
+      <span class="chip">极简模式可用</span>
+      <span class="chip">前台命令识别</span>
+      <span class="chip">GBK 读取</span>
+    </div>
+  </div>
+
+  <div id="right">
+    <div class="card bad">
+      <div class="head">✕ 官方 DSH</div>
+      <div class="line">terminal inspection is<br>unsupported on platform win32</div>
+    </div>
+    <div class="card good">
+      <div class="head">✓ 装上之后</div>
+      <div class="line">persist:win42:/c/work/demo</div>
+    </div>
+  </div>
+</div>
