@@ -46,6 +46,14 @@ npx dsh-win32 setup --shortcut   # 额外建桌面快捷方式
 
 已经出问题了？`npx dsh-win32 doctor` 逐项指出已知的坑（koffi 3.1.3/3.1.4 损坏预编译导致的安装失败与选择器崩溃、缺 PowerShell 7 时 5.1 在沙箱里的 0xC0000142、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash），`npx dsh-win32 fix` 自动修复能安全修的部分。
 
+`doctor` 还能吐机器可读的结果，给 CI 和支持流程用。
+
+```sh
+npx dsh-win32 doctor --json
+```
+
+输出是社区正在定的 `dsh-doctor/v1` 信封（[deepseek-harness#1719](https://github.com/deepseek-ai/deepseek-harness/discussions/1719)），退出码沿用契约的 0 / 1 / 2（全通过 / 有 warn / 有 fail）。里面的 `skip` 状态是我们提的，因为 `git_bash` 这类检查在 Linux 上既不是通过也不是失败而是不适用，只有三个状态的话实现要么说谎要么污染整条 CI。`skip` 必须带原因，且不计入通过或失败。
+
 ## 还有
 
 **旧编码读取。** 官方 fs 对 GBK/UTF-16 文件直接 `FS_NOT_TEXT` 拒读，中文旧项目 Agent 根本打不开。两个预设都挂载了 `dsh-win32/fs`，读取路径自动嗅探解码 GBK/UTF-16；v0.5 起前台 shell 的 collect 输出同样处理。写入保持 UTF-8（编辑旧编码文件会转码，如实写明）。

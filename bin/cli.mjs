@@ -79,41 +79,94 @@ function scanKoffi() {
   return results
 }
 
-function doctor() {
-  console.log(`dsh-win32 doctor (platform: ${process.platform})`)
+/** Every win32 name below is meaningless elsewhere, hence `skip`. */
+const NOT_WINDOWS = 'win32 only, not applicable on this platform'
+
+/**
+ * Run the checks and return them in the `dsh-doctor/v1` vocabulary
+ * (deepseek-harness#1719). `status` is pass / warn / fail, plus `skip` for a
+ * check that does not apply here, which the vocabulary added at our request
+ * because three states force a platform-scoped check to either lie (pass) or
+ * poison the run (fail). `skip` carries a mandatory reason and counts as
+ * neither pass nor fail.
+ */
+function collectChecks() {
+  const checks = []
+  const add = (name, status, detail) => checks.push({ name, status, detail })
 
   const [major, minor] = process.versions.node.split('.').map(Number)
-  if (major > 22 || (major === 22 && minor >= 19)) ok(`node ${process.versions.node}`)
-  else bad(`node ${process.versions.node}. DSH needs ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
+  // Range is the one declared by the deepseek-harness root package.json, not
+  // a threshold derived from an observed failure (#1719, #2259).
+  if (major > 22 || (major === 22 && minor >= 19)) add('node', 'pass', process.versions.node)
+  else add('node', 'fail', `node ${process.versions.node}. DSH needs ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
 
   const gitBash = WIN ? findGitBash() : undefined
-  if (WIN) {
-    if (gitBash !== undefined) ok(`Git Bash: ${gitBash}`)
-    else bad('Git Bash not found. Install from https://git-scm.com (winget install Git.Git), then re-run')
+  if (!WIN) {
+    for (const name of ['git_bash', 'powershell', 'koffi', 'sandbox_shell']) add(name, 'skip', NOT_WINDOWS)
+    return { checks, gitBash }
+  }
 
-    const pwsh7 = findPwsh7()
-    if (pwsh7 !== undefined) ok(`PowerShell 7: ${pwsh7}`)
-    else warn('PowerShell 7 not found. The Windows 5.1 fallback crashes (0xC0000142) inside the DSH sandbox; winget install Microsoft.PowerShell')
+  if (gitBash === undefined) add('git_bash', 'fail', 'Git Bash not found. Install from https://git-scm.com (winget install Git.Git), then re-run')
+  else if (/\\bin\\bash\.exe$/i.test(gitBash)) add('git_bash', 'warn', `${gitBash} is the 47KB wrapper, not the real shell; the PTY pid lands on the wrapper (see #7)`)
+  else add('git_bash', 'pass', gitBash)
 
-    for (const { profile, version } of scanKoffi()) {
-      if (version === '3.1.3' || version === '3.1.4') {
-        warn(`koffi ${version} in profile "${profile}", a broken win32-x64 prebuilt (install failures, folder-picker and session-save crashes)`)
-        info(`fix: cd "${join(DSH_HOME, 'profiles', profile)}" && pnpm add koffi@3.1.2 --ignore-scripts`)
-      } else {
-        ok(`koffi ${version} in profile "${profile}"`)
-      }
-    }
+  const pwsh7 = findPwsh7()
+  if (pwsh7 !== undefined) add('powershell', 'pass', pwsh7)
+  else add('powershell', 'warn', 'PowerShell 7 not found. The Windows 5.1 fallback crashes (0xC0000142) inside the DSH sandbox; winget install Microsoft.PowerShell')
+
+  const koffi = scanKoffi()
+  const brokenKoffi = koffi.filter(({ version }) => version === '3.1.3' || version === '3.1.4')
+  if (brokenKoffi.length > 0) {
+    const where = brokenKoffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', ')
+    add('koffi', 'warn', `broken win32-x64 prebuilt (${where}); install failures, folder-picker and session-save crashes. Run: npx dsh-win32 fix`)
+  } else if (koffi.length === 0) add('koffi', 'pass', 'no koffi found in any profile')
+  else add('koffi', 'pass', koffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', '))
+
+  // MSYS bash dies under the workspace-write restricted token, so without the
+  // busybox variant a sandboxed session has no working shell at all (#6).
+  if (existsSync(join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed'))) {
+    add('sandbox_shell', 'pass', 'minimal-windows-sandboxed installed; persistent shell works inside workspace-write')
   } else {
-    info('not Windows, so doctor checks the Windows traps only when run there')
+    add('sandbox_shell', 'warn', 'only the Git Bash preset is installed, which needs danger-full-access. For a shell that survives the workspace-write sandbox: npx dsh-win32 setup --sandboxed')
   }
 
-  if (WIN) {
-    warn('mode matters. The Git Bash preset (minimal-windows) needs danger-full-access, because MSYS bash dies inside the workspace-write sandbox')
-    info('to stay sandboxed, install the busybox variant: npx dsh-win32 setup --sandboxed  (then pick "Minimal (Windows, sandboxed)")')
+  return { checks, gitBash }
+}
+
+const RENDER = { pass: ok, warn, fail: bad, skip: message => console.log(`  skip  ${message}`) }
+
+function summarize(checks) {
+  const summary = { pass: 0, warn: 0, fail: 0, skip: 0 }
+  for (const { status } of checks) summary[status] += 1
+  // Contract exit semantics: 0 all pass, 1 any warn, 2 any fail. skip is neither.
+  const exitCode = summary.fail > 0 ? 2 : summary.warn > 0 ? 1 : 0
+  return { summary, exitCode }
+}
+
+function doctor({ json = false } = {}) {
+  const { checks, gitBash } = collectChecks()
+  const { summary, exitCode } = summarize(checks)
+
+  if (json) {
+    console.log(JSON.stringify({
+      schema: 'dsh-doctor/v1',
+      generatedAt: new Date().toISOString(),
+      profile: null,
+      exitCode,
+      summary,
+      ok: summary.fail === 0,
+      checks,
+    }, null, 2))
+    return { gitBash, exitCode }
   }
+
+  console.log(`dsh-win32 doctor (platform: ${process.platform})`)
+  for (const { name, status, detail } of checks) RENDER[status](`${name}: ${detail}`)
+  if (!WIN) info('not Windows, so the Windows traps are skipped rather than reported')
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
-  info(`one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)`)
-  return { gitBash }
+  info('one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)')
+  info('machine-readable output: npx dsh-win32 doctor --json  (dsh-doctor/v1 envelope)')
+  return { gitBash, exitCode }
 }
 
 function bundleInstalled(profile = 'web') {
@@ -253,8 +306,11 @@ async function setup(args) {
 const [, , command, ...rest] = process.argv
 if (command === 'setup') await setup(rest)
 else if (command === 'fix') fix()
-else if (command === 'doctor' || command === undefined) doctor()
-else {
-  console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+else if (command === 'doctor' || command === undefined) {
+  // Exit codes apply to a direct `doctor` run only. `setup` calls doctor for
+  // its report and decides for itself whether a finding is fatal.
+  process.exitCode = doctor({ json: rest.includes('--json') }).exitCode
+} else {
+  console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json]|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
   process.exit(1)
 }

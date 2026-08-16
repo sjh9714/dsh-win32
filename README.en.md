@@ -44,6 +44,14 @@ The preset appears in the picker immediately. Requires [Git for Windows](https:/
 
 Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
 
+`doctor` also emits machine-readable results for CI and support use.
+
+```sh
+npx dsh-win32 doctor --json
+```
+
+The output is the community `dsh-doctor/v1` envelope ([deepseek-harness#1719](https://github.com/deepseek-ai/deepseek-harness/discussions/1719)), with the contract's 0 / 1 / 2 exit codes (all pass / any warn / any fail). The `skip` status in it is ours. A check like `git_bash` is neither a pass nor a failure on Linux, it does not apply, and with only three states an implementation has to either lie or poison a cross-platform CI run. `skip` carries a mandatory reason and counts as neither.
+
 ## Writing your own preset on Windows
 
 If your preset mounts `@deepseek-ai/dsh-terminal-bash` without an explicit `shellPath`, the default `/bin/bash` resolves to `C:\Windows\System32\bash.exe` on Windows, the WSL launcher, and the PTY exits at startup. Point it at the real shell instead.
