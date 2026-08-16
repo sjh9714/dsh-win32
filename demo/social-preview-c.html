@@ -1,0 +1,67 @@
+<!doctype html>
+<meta charset="utf-8">
+<!--
+  Social preview, option C. The structure the high-star repos in this ecosystem
+  use for a banner: eyebrow, large mono wordmark, one-line claim, feature chips
+  on the left, and a visual behind it that is tinted down so the type always
+  wins. dsh-web-ui uses character art there. We do not have art, so the visual
+  is the real product doing real work, which is the thing we can claim and they
+  cannot.
+
+  1280x640, the size GitHub renders for a social preview.
+-->
+<style>
+  :root{
+    --bg:#0f1115; --ink:#f2f5f8; --dim:#8b939c;
+    --accent:#5b9dff; --ok:#4ade80;
+    --sans:-apple-system,'Helvetica Neue','PingFang SC','Microsoft YaHei',Arial,sans-serif;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  html,body{margin:0;width:1280px;height:640px;overflow:hidden;background:var(--bg);font-family:var(--sans)}
+  #wrap{position:relative;width:1280px;height:640px;overflow:hidden}
+
+  /* The screenshot sits right of centre, scaled so the transcript and the
+     composer badge are the part that shows. */
+  #shot{
+    position:absolute;top:0;right:0;height:640px;
+    /* 1456x840 scaled to 640 tall is 1109 wide; push it right so the empty
+       left gutter of the app window falls outside the frame. */
+    width:1109px;
+    background:url('../assets/shot-persistent-sandboxed.png') no-repeat;
+    background-size:cover;background-position:right center;
+    filter:saturate(0.55) brightness(0.72);
+  }
+  /* Left-to-right fade so the text column reads on a clean ground. */
+  #veil{
+    position:absolute;inset:0;
+    background:linear-gradient(100deg,
+      rgba(15,17,21,1) 0%,
+      rgba(15,17,21,0.985) 34%,
+      rgba(15,17,21,0.86) 46%,
+      rgba(15,17,21,0.42) 62%,
+      rgba(15,17,21,0.20) 100%);
+  }
+  #copy{position:absolute;left:64px;top:0;height:640px;width:600px;display:flex;flex-direction:column;justify-content:center}
+  #eyebrow{font-size:19px;letter-spacing:3.5px;color:var(--dim);text-transform:uppercase;font-weight:600}
+  #name{margin-top:16px;font-family:var(--mono);font-size:86px;font-weight:800;color:var(--ink);letter-spacing:-2.5px;line-height:1}
+  #tag{margin-top:22px;font-size:31px;color:var(--accent);font-weight:700;line-height:1.36}
+  #chips{margin-top:30px;display:flex;flex-wrap:wrap;gap:11px;max-width:560px}
+  .chip{font-size:20px;color:#d3dae1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 18px;backdrop-filter:blur(2px)}
+  #proof{margin-top:26px;font-family:var(--mono);font-size:19px;color:var(--ok)}
+</style>
+<div id="wrap">
+  <div id="shot"></div>
+  <div id="veil"></div>
+  <div id="copy">
+    <div id="eyebrow">DeepSeek Harness · Windows</div>
+    <div id="name">dsh-win32</div>
+    <div id="tag">让极简模式在 Windows 上<br>真正跑起来</div>
+    <div id="chips">
+      <span class="chip">沙箱内持久 shell</span>
+      <span class="chip">极简模式可用</span>
+      <span class="chip">前台命令识别</span>
+      <span class="chip">GBK 读取</span>
+    </div>
+    <div id="proof">✓ 真机截图，非示意图</div>
+  </div>
+</div>
