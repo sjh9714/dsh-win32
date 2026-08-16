@@ -72,27 +72,53 @@ describe('wrapTerminalHandle', () => {
 })
 
 describe('toPortableEval', () => {
+  // Replicated from dsh-tool-bash-persistent so the fixture is the string that
+  // actually reaches the PTY. 0.8.1 anchored on a hand-written plain-quote
+  // wrapper, which matched nothing in production and shipped the rewrite
+  // disabled while this suite stayed green.
+  const quoteForBash = (value: string) =>
+    `$'${value
+      .replaceAll('\\', '\\\\')
+      .replaceAll("'", "\\'")
+      .replaceAll('\r', '\\r')
+      .replaceAll('\n', '\\n')}'`
   const wrap = (command: string) =>
-    `printf '%s\\n' 'S1'; eval -- '${command}'; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E1' "$__dsh_persistent_bash_status"`
+    `printf '%s\\n' ${quoteForBash('S1')}; eval -- ${quoteForBash(command)};`
+    + ` __dsh_persistent_bash_status=$?; printf '%s%s\\n' ${quoteForBash('E1')}`
+    + ` "$__dsh_persistent_bash_status"`
 
   it('replaces the bashism with the portable leading-space form', () => {
     expect(toPortableEval(wrap('echo ok'))).toBe(
-      `printf '%s\\n' 'S1'; eval ' echo ok'; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E1' "$__dsh_persistent_bash_status"`,
+      `printf '%s\\n' $'S1'; eval $' echo ok';`
+      + ` __dsh_persistent_bash_status=$?; printf '%s%s\\n' $'E1'`
+      + ` "$__dsh_persistent_bash_status"`,
     )
   })
 
+  it('anchors on the ANSI-C quoting the core emits, not on plain quotes', () => {
+    // The regression that shipped in 0.8.1. The wrapper carries a `$` between
+    // the separator and the quote, so a plain-quote anchor never fires and the
+    // sandboxed preset keeps dying with `eval: --: not found`.
+    const wrapped = wrap('MARK=box7')
+    expect(wrapped).toContain("; eval -- $'")
+    expect(toPortableEval(wrapped)).not.toBe(wrapped)
+    expect(toPortableEval(wrapped)).not.toContain('eval -- ')
+  })
+
   it('rewrites only the wrapper, never a match inside the command', () => {
-    // A command that itself contains the wrapper text, quoted the way
-    // quoteForBash would escape it.
-    const rewritten = toPortableEval(wrap(`echo '\\''; eval -- '\\''x`))
-    expect(rewritten.indexOf("eval ' ")).toBe(rewritten.indexOf('eval'))
-    expect(rewritten.match(/eval ' /g)).toHaveLength(1)
-    expect(rewritten).toContain("; eval -- '")
+    // quoteForBash escapes every quote, so the command's own copy of the
+    // wrapper text arrives escaped and cannot be mistaken for the real one.
+    const rewritten = toPortableEval(wrap(`echo "; eval -- $'x"`))
+    expect(rewritten.match(/; eval \$' /g)).toHaveLength(1)
   })
 
   it('leaves anything that is not the wrapper alone', () => {
-    for (const data of ['\x03', 'echo hello\n', "eval -- 'bare'", `printf '%s\\n' 'S1'; eval -- 'no tail'`]) {
-      expect(toPortableEval(data)).toBe(data)
-    }
+    const notWrappers = [
+      '\x03',
+      'echo hello\n',
+      "eval -- $'bare'",
+      `printf '%s\\n' $'S1'; eval -- $'no tail'`,
+    ]
+    for (const data of notWrappers) expect(toPortableEval(data)).toBe(data)
   })
 })

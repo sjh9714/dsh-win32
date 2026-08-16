@@ -37,7 +37,7 @@ function taskkillTree(pid: number): void {
 /**
  * `dsh-tool-bash-persistent` wraps every command as
  *
- *   printf '%s\n' 'START'; eval -- 'CMD'; __dsh_persistent_bash_status=$?; ...
+ *   printf '%s\n' $'START'; eval -- $'CMD'; __dsh_persistent_bash_status=$?; ...
  *
  * and `eval --` is a bashism. POSIX shells do not accept `--` for the `eval`
  * special builtin, so busybox ash reads `--` as the command name and every
@@ -52,10 +52,16 @@ function taskkillTree(pid: number): void {
  * both shells, `eval ' -n hi'` behaves exactly like bash's `eval -- '-n hi'`,
  * so this is safe to apply on the Git Bash preset too.
  *
+ * The command is quoted with ANSI-C syntax, so the wrapper reads `eval -- $'…'`
+ * and not `eval -- '…'`. Anchoring on the plain-quote form matched nothing in
+ * production and shipped 0.8.1 with the rewrite disabled, so the `$` is load
+ * bearing. The test fixture is built from the core's own quoting for the same
+ * reason, since a hand-written wrapper can drift from what actually ships.
+ *
  * Reported upstream at deepseek-harness#2271. This rewrite goes away when the
  * fix lands there.
  */
-const WRAPPED_EVAL = "; eval -- '"
+const WRAPPED_EVAL = "; eval -- $'"
 
 export function toPortableEval(data: string): string {
   // Anchored on both ends of the known wrapper. A command that merely contains
@@ -63,7 +69,7 @@ export function toPortableEval(data: string): string {
   if (!data.startsWith("printf '%s\\n' ") || !data.includes(WRAPPED_EVAL)) return data
   if (!data.trimEnd().endsWith('"$__dsh_persistent_bash_status"')) return data
   const at = data.indexOf(WRAPPED_EVAL)
-  return `${data.slice(0, at)}; eval ' ${data.slice(at + WRAPPED_EVAL.length)}`
+  return `${data.slice(0, at)}; eval $' ${data.slice(at + WRAPPED_EVAL.length)}`
 }
 
 /**
