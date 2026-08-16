@@ -8,7 +8,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import process from 'node:process'
 import { describe, expect, it } from 'vitest'
 
@@ -30,7 +30,10 @@ function runDoctor(): { envelope: any, exitCode: number } {
 // told every correctly installed user their shell was the 47KB wrapper.
 describe('isBashWrapper', () => {
   it('accepts the real shell and rejects only the wrapper', async () => {
-    const { isBashWrapper } = await import('../bin/cli.mjs' as string)
+    // Built as a file: URL rather than a relative specifier. Windows resolves
+    // the latter to a `C:\...` path, which is not a valid URL for the ESM
+    // loader, so a relative dynamic import fails there and only there.
+    const { isBashWrapper } = await import(pathToFileURL(CLI).href) as { isBashWrapper: (path: string) => boolean }
     expect(isBashWrapper('C:\\Program Files\\Git\\usr\\bin\\bash.exe')).toBe(false)
     expect(isBashWrapper('C:/Program Files/Git/usr/bin/bash.exe')).toBe(false)
     expect(isBashWrapper('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true)
