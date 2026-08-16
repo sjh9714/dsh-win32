@@ -61,6 +61,12 @@ export class DecodingCollector {
     }
     try {
       if (this.spillFd === undefined) {
+        // Recreated on every open rather than cached for the process lifetime:
+        // Windows temp cleaners (火绒, CCleaner, Storage Sense) delete
+        // %TEMP%\dsh-* mid-session, and a cached directory handle turns the
+        // next spill into an ENOENT thrown from a stream 'data' listener
+        // (deepseek-harness#2252, still reproducible at rc.6). `recursive`
+        // makes the re-check free when the directory survives.
         const dir = join(tmpdir(), `dsh-win32-spill-${process.pid}`)
         mkdirSync(dir, { recursive: true, mode: 0o700 })
         this.spillFile = join(dir, `stream-${spillCounter++}`)
@@ -70,7 +76,12 @@ export class DecodingCollector {
         writeSync(this.spillFd, chunk)
       }
     } catch {
+      // Spilling is best-effort: the in-memory tail still serves reads, so a
+      // failure here must never reach push()'s caller (the 'data' listener).
       this.spillDead = true
+      if (this.spillFd !== undefined) {
+        try { closeSync(this.spillFd) } catch { /* already gone */ }
+      }
       this.spillFd = undefined
       this.spillFile = undefined
     }
