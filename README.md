@@ -164,6 +164,7 @@ npx dsh-win32 doctor --json
 ## 诚实的限制
 
 - Git Bash 预设需要 `danger-full-access`（MSYS 受限令牌问题如上，已实测）。沙箱内请用 busybox 变体，代价是 ash 而非 bash（没有数组、没有 `[[ ]]`）。
+- **`toPortableEval` 只覆盖实现了 ANSI-C 引用（`$'...'`）的 shell，不是所有 POSIX shell。** 它把核心发的 `eval -- $'...'` 改写成 `eval $' ...'`，前导空格绕开了 `--` 这个 bashism，但 `$'...'` 本身也是 bashism。busybox ash 实现了它（我们的 CI 门禁就是这个形式，windows-latest 上是绿的），**dash 没有**，`$'abc'` 在 dash 里得到字面量 `$abc`，于是报错从 `eval: --: not found` 变成 `eval: $: not found`，同样是 exit 127。真正的全 POSIX 覆盖要求核心的 `quoteForBash` 有一条普通单引号转义路径，那在上游（[#2271](https://github.com/deepseek-ai/deepseek-harness/discussions/2271)）。我们只支持 busybox ash 一路。
 - 旧编码文件的编辑会保存为 UTF-8，不做往返。
 - PTY 输出的旧代码页在插件层无法解码：node-pty 在任何 DSH 代码运行之前就按 UTF-8 解码，且在 Windows 上拒绝编码覆盖。随附 shell 默认 UTF-8，所以预设不受影响。
 - `foregroundPgid` 只能返回一个 pid，但管道的每一段都附着在控制台上。它取最新的那个附着，所以对 `a | b | c` 发 SIGTERM/SIGKILL 会树杀选中的那一段和它的子进程，其余各段要等管道断掉才结束，而 POSIX 靠共享 pgid 能一次全打到。SIGINT 不受影响，它走 Ctrl-C 注入，由 shell 自己把信号发给整个作业。取最新而不是最老是有意的，后台作业比前台命令更老，取最老会打错目标，还会在 shell 已经回到提示符时报告前台繁忙，那正是 [#7](https://github.com/sjh9714/dsh-win32/issues/7) 说的判别器失效。跟踪在 [#11](https://github.com/sjh9714/dsh-win32/issues/11)。
