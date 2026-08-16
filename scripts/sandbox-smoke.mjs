@@ -108,8 +108,17 @@ try {
     // Seeing the marker in the scrollback does not mean the operation settled.
     await firstSend.done.catch(() => {})
     const wrapMarker = `wrapped-${process.pid}`
-    const wrapped = `printf '%s\\n' 'S-${wrapMarker}'; eval -- 'echo ${wrapMarker}:$((6*7))'`
-      + `; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E-${wrapMarker}:' "$__dsh_persistent_bash_status"`
+    // quoteForBash in dsh-tool-bash-persistent emits ANSI-C quoting, so the real
+    // wrapper reads `eval -- $'...'` and not `eval -- '...'`. Hand-writing the
+    // plain-quote shape here is what let 0.8.1 ship with the rewrite disabled
+    // while this gate stayed green, so the fixture has to match what the core
+    // actually sends.
+    const quoteForBash = value =>
+      `$'${value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
+    const wrapped = `printf '%s\\n' ${quoteForBash(`S-${wrapMarker}`)}`
+      + `; eval -- ${quoteForBash(`echo ${wrapMarker}:$((6*7))`)}`
+      + `; __dsh_persistent_bash_status=$?`
+      + `; printf '%s%s\\n' ${quoteForBash(`E-${wrapMarker}:`)} "$__dsh_persistent_bash_status"`
     ctx.terminals.startSend(agent, spawned.sessionId, { text: wrapped, submit: true })
     const wantOutput = `${wrapMarker}:42`
     const wantStatus = `E-${wrapMarker}:0`
