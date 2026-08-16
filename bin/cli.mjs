@@ -62,6 +62,32 @@ function findPwsh7() {
   return first !== undefined && first !== '' ? first : undefined
 }
 
+/**
+ * pnpm backs the profile-directory install: `dsh plugin add` forwards to it,
+ * so a box without pnpm fails the bundle wiring with a bare
+ * "'pnpm' is not recognized" and no hint about what is actually missing (#13).
+ */
+function findPnpm() {
+  const located = tryExec(WIN ? 'where.exe' : 'which', ['pnpm'])
+  const first = (located ?? '').split(/\r?\n/)[0]?.trim()
+  return first !== undefined && first !== '' ? first : undefined
+}
+
+/** node ships corepack, so a missing pnpm is recoverable without a download. */
+function enablePnpmViaCorepack() {
+  try {
+    // Constant argv; shell:true only because Windows corepack is a .cmd shim (CVE-2024-27980 policy).
+    execFileSync(WIN ? 'corepack.cmd' : 'corepack', ['enable', 'pnpm'], {
+      stdio: 'ignore',
+      windowsHide: true,
+      shell: WIN,
+    })
+  } catch {
+    return undefined
+  }
+  return findPnpm()
+}
+
 /** koffi 3.1.3/3.1.4 ship a broken win32-x64 prebuilt (segfault chain: install failures, picker crash, silent session-save crash). */
 function scanKoffi() {
   const results = []
@@ -110,6 +136,10 @@ function collectChecks() {
   // a threshold derived from an observed failure (#1719, #2259).
   if (major > 22 || (major === 22 && minor >= 19)) add('node', 'pass', process.versions.node)
   else add('node', 'fail', `node ${process.versions.node}. DSH needs ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
+
+  const pnpm = findPnpm()
+  if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
+  else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it. setup enables it through corepack, or: npm install -g pnpm')
 
   const gitBash = WIN ? findGitBash() : undefined
   if (!WIN) {
@@ -204,6 +234,15 @@ function ensureBundle() {
   if (bundleInstalled()) {
     ok('bundle dsh-win32 already wired into the web profile')
     return
+  }
+  if (findPnpm() === undefined) {
+    console.log('pnpm not found, enabling it through corepack (ships with node)...')
+    if (enablePnpmViaCorepack() === undefined) {
+      warn('pnpm is missing and corepack could not enable it, so the wiring below will fail')
+      info('install pnpm and re-run: npm install -g pnpm')
+    } else {
+      ok('pnpm enabled through corepack')
+    }
   }
   console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
   // -w: the profile dir is a pnpm workspace root; pnpm 10+ refuses a bare add there.
