@@ -4,6 +4,7 @@ lib/
 __pycache__/
 .DS_Store
 launch/
+handoff/
 demo/node_modules/
 demo/_frames/
 session-*.md
