@@ -1,15 +1,22 @@
 {
   "name": "dsh-win32",
   "version": "0.10.0",
-  "description": "DeepSeek Harness 的 Windows 插件：沙箱内唯一能跑的持久 shell、可用的极简模式、前台命令识别、旧编码读取与安装体检 | First-class Windows for DSH",
+  "description": "在 Windows 上把 DSH 用起来。一行装好极简模式的持久 shell，沙箱内也能用 | Get DSH working on Windows: persistent shell for Minimal mode, sandbox included",
   "type": "module",
   "license": "MIT",
   "repository": "github:sjh9714/dsh-win32",
+  "homepage": "https://github.com/sjh9714/dsh-win32#readme",
   "keywords": [
     "dsh",
     "dsh-plugin",
+    "dsh-plugins",
     "deepseek-harness",
-    "windows"
+    "deepseek",
+    "windows",
+    "win32",
+    "git-bash",
+    "persistent-shell",
+    "minimal-mode"
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
