@@ -32,7 +32,34 @@ jobs:
       - name: doctor + setup smoke
         shell: bash
         run: |
+          # dsh-doctor/v1 exit semantics: 0 all pass, 1 any warn, 2 any fail.
+          # A bare runner legitimately warns (no PowerShell 7, no sandboxed
+          # preset yet), so only a fail is a build failure here.
+          set +e
           node bin/cli.mjs doctor
+          code=$?
+          set -e
+          test "$code" -lt 2 || { echo "doctor reported a fail (exit $code)"; exit 1; }
+          node bin/cli.mjs doctor --json > doctor.json
+          node -e "
+            const e = require('./doctor.json')
+            if (e.schema !== 'dsh-doctor/v1') throw new Error('bad schema ' + e.schema)
+            const counted = e.summary.pass + e.summary.warn + e.summary.fail + e.summary.skip
+            if (counted !== e.checks.length) throw new Error('summary does not add up')
+            for (const c of e.checks) {
+              if (!['pass','warn','fail','skip'].includes(c.status)) throw new Error('bad status ' + c.status)
+              if (c.status === 'skip' && !c.detail) throw new Error('skip without a reason: ' + c.name)
+            }
+            const win = process.platform === 'win32'
+            const names = e.checks.map(c => c.name)
+            for (const n of ['node','git_bash','powershell','koffi','sandbox_shell']) {
+              if (!names.includes(n)) throw new Error('missing vocabulary name ' + n)
+            }
+            const skipped = e.checks.filter(c => c.status === 'skip').length
+            if (win && skipped !== 0) throw new Error('win32 should skip nothing, got ' + skipped)
+            if (!win && skipped !== 4) throw new Error('non-win32 should skip 4, got ' + skipped)
+            console.log('envelope ok, exit', e.exitCode, JSON.stringify(e.summary))
+          "
           if [ "$RUNNER_OS" = "Windows" ]; then
             node bin/cli.mjs setup --no-bundle
             grep -q 'bash.exe' "$USERPROFILE/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
