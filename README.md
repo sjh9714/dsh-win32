@@ -62,7 +62,9 @@ npx dsh-win32 setup --shortcut   # 额外建桌面快捷方式
 npx dsh-win32 doctor --json
 ```
 
-输出是社区正在定的 `dsh-doctor/v1` 信封（[deepseek-harness#1719](https://github.com/deepseek-ai/deepseek-harness/discussions/1719)），退出码沿用契约的 0 / 1 / 2（全通过 / 有 warn / 有 fail）。里面的 `skip` 状态是我们提的，因为 `git_bash` 这类检查在 Linux 上既不是通过也不是失败而是不适用，只有三个状态的话实现要么说谎要么污染整条 CI。`skip` 必须带原因，且不计入通过或失败。
+输出是社区共同定的 `dsh-doctor/v1` 信封（[deepseek-harness#1719](https://github.com/deepseek-ai/deepseek-harness/discussions/1719)），退出码沿用契约的 0 / 1 / 2（全通过 / 有 warn / 有 fail）。里面的 `skip` 状态是我们提的，因为 `git_bash` 这类检查在 Linux 上既不是通过也不是失败而是不适用，只有三个状态的话实现要么说谎要么污染整条 CI。`skip` 必须带原因，且不计入通过或失败。
+
+状态字面量是 `pass` / `warn` / `fail` / `skip`。`node` 只有两态，在声明范围内是 `pass`，范围外是 `warn`（对齐 npm 的 EBADENGINE 语义，范围之下没有任何有出处的 fail 边界）。
 
 ## 还有
 

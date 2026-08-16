@@ -117,9 +117,13 @@ function collectChecks() {
 
   const [major, minor] = process.versions.node.split('.').map(Number)
   // Range is the one declared by the deepseek-harness root package.json, not
-  // a threshold derived from an observed failure (#1719, #2259).
+  // a threshold derived from an observed failure (#1719, #2259). Two states on
+  // purpose. npm surfaces an out-of-range engine as EBADENGINE, a warning
+  // rather than an error, so a doctor that fails here is stricter than the
+  // packaging system that owns the constraint. Any `fail` boundary below the
+  // declared range would be a number nothing declares.
   if (major > 22 || (major === 22 && minor >= 19)) add('node', 'pass', process.versions.node)
-  else add('node', 'fail', `node ${process.versions.node}. DSH needs ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
+  else add('node', 'warn', `node ${process.versions.node} is outside DSH's declared range ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
 
   const pnpm = findPnpm()
   if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
