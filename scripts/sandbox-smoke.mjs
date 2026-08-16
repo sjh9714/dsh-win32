@@ -98,6 +98,32 @@ try {
   } else {
     console.error(`FAIL: marker ${expected} not seen. last output:\n${text.slice(-1500)}`)
   }
+
+  // Raw text above is the terminal-tool path. The agent's bash tool wraps every
+  // command first, and that wrapper used a bashism (`eval --`) that busybox ash
+  // rejects, so the plain round-trip passed while every real command failed
+  // with exit 127 (#12). Exercise the wrapped shape too.
+  if (exitCode === 0) {
+    const wrapMarker = `wrapped-${process.pid}`
+    const wrapped = `printf '%s\\n' 'S-${wrapMarker}'; eval -- 'echo ${wrapMarker}:$((6*7))'`
+      + `; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E-${wrapMarker}:' "$__dsh_persistent_bash_status"`
+    ctx.terminals.startSend(agent, spawned.sessionId, { text: wrapped, submit: true })
+    const wantOutput = `${wrapMarker}:42`
+    const wantStatus = `E-${wrapMarker}:0`
+    const wrapDeadline = Date.now() + 40_000
+    let wrapText = ''
+    while (Date.now() < wrapDeadline) {
+      wrapText = ctx.terminals.read(agent, spawned.sessionId).text
+      if (wrapText.includes(wantStatus)) break
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
+    if (wrapText.includes(wantOutput) && wrapText.includes(wantStatus)) {
+      console.log(`ok: the bash-tool wrapper round-tripped too (${wantOutput}, status 0)`)
+    } else {
+      console.error(`FAIL: wrapped command did not round-trip. wanted ${wantOutput} and ${wantStatus}. last output:\n${wrapText.slice(-1500)}`)
+      exitCode = 1
+    }
+  }
   // Cleanup problems after a proven round-trip are logged, never a verdict.
   await ctx.terminals.kill(agent, spawned.sessionId).catch(error => {
     console.log(`note: terminal cleanup complained after the verdict: ${String(error)}`)

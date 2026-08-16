@@ -35,6 +35,38 @@ function taskkillTree(pid: number): void {
 }
 
 /**
+ * `dsh-tool-bash-persistent` wraps every command as
+ *
+ *   printf '%s\n' 'START'; eval -- 'CMD'; __dsh_persistent_bash_status=$?; ...
+ *
+ * and `eval --` is a bashism. POSIX shells do not accept `--` for the `eval`
+ * special builtin, so busybox ash reads `--` as the command name and every
+ * command in the sandboxed preset dies with `eval: --: not found` (exit 127).
+ * Measured on busybox-w32 v1.38 by a user (#12) and reproduced here on dash,
+ * which rules out a busybox quirk. `eval` cannot be shadowed either, since a
+ * special builtin's name is rejected as a function name ("Bad function name").
+ *
+ * A single leading space inside the quoted word does the same job as `--`
+ * portably. The argument no longer begins with `-`, so it never enters option
+ * parsing, and leading whitespace is nothing to shell parsing. Measured on
+ * both shells, `eval ' -n hi'` behaves exactly like bash's `eval -- '-n hi'`,
+ * so this is safe to apply on the Git Bash preset too.
+ *
+ * Reported upstream at deepseek-harness#2271. This rewrite goes away when the
+ * fix lands there.
+ */
+const WRAPPED_EVAL = "; eval -- '"
+
+export function toPortableEval(data: string): string {
+  // Anchored on both ends of the known wrapper. A command that merely contains
+  // the same text is left alone, and a chunked write simply does not match.
+  if (!data.startsWith("printf '%s\\n' ") || !data.includes(WRAPPED_EVAL)) return data
+  if (!data.trimEnd().endsWith('"$__dsh_persistent_bash_status"')) return data
+  const at = data.indexOf(WRAPPED_EVAL)
+  return `${data.slice(0, at)}; eval ' ${data.slice(at + WRAPPED_EVAL.length)}`
+}
+
+/**
  * Wrap a live terminal handle: keyboard-equivalent signals are injected as
  * input, and a failed terminate falls back to a forced tree kill. Directly
  * spawned console apps (busybox ash observed on CI) can survive a ConPTY
@@ -53,6 +85,9 @@ export function wrapTerminalHandle<H extends TerminalHandleLike>(handle: H, kill
           // for "the session that received the keystroke".
           return target.pid
         }
+      }
+      if (property === 'write') {
+        return (data: string): Promise<void> => target.write(toPortableEval(data))
       }
       if (property === 'terminate') {
         return async (): Promise<void> => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { wrapTerminalHandle } from './terminal-wrap.ts'
+import { toPortableEval, wrapTerminalHandle } from './terminal-wrap.ts'
 
 function fakeHandle() {
   const writes: string[] = []
@@ -68,5 +68,31 @@ describe('wrapTerminalHandle', () => {
     expect(wrapped.pid).toBe(777)
     await wrapped.write('ls\n')
     expect(inner.writes).toEqual(['ls\n'])
+  })
+})
+
+describe('toPortableEval', () => {
+  const wrap = (command: string) =>
+    `printf '%s\\n' 'S1'; eval -- '${command}'; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E1' "$__dsh_persistent_bash_status"`
+
+  it('replaces the bashism with the portable leading-space form', () => {
+    expect(toPortableEval(wrap('echo ok'))).toBe(
+      `printf '%s\\n' 'S1'; eval ' echo ok'; __dsh_persistent_bash_status=$?; printf '%s%s\\n' 'E1' "$__dsh_persistent_bash_status"`,
+    )
+  })
+
+  it('rewrites only the wrapper, never a match inside the command', () => {
+    // A command that itself contains the wrapper text, quoted the way
+    // quoteForBash would escape it.
+    const rewritten = toPortableEval(wrap(`echo '\\''; eval -- '\\''x`))
+    expect(rewritten.indexOf("eval ' ")).toBe(rewritten.indexOf('eval'))
+    expect(rewritten.match(/eval ' /g)).toHaveLength(1)
+    expect(rewritten).toContain("; eval -- '")
+  })
+
+  it('leaves anything that is not the wrapper alone', () => {
+    for (const data of ['\x03', 'echo hello\n', "eval -- 'bare'", `printf '%s\\n' 'S1'; eval -- 'no tail'`]) {
+      expect(toPortableEval(data)).toBe(data)
+    }
   })
 })
