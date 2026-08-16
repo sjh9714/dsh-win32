@@ -18,6 +18,10 @@ const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, '..', 'bin', 'cli.mjs')
 const SIM = join(here, '..', 'scripts', 'win32-sim.mjs')
 const STATUSES = ['pass', 'warn', 'fail', 'skip']
+// Every case here spawns a real node process, and doctor now shells out to
+// `where.exe` and walks the profile directory. A Windows runner took 7.2s for
+// the first spawn, so the 5s default made this a coin flip rather than a test.
+const SPAWN_TIMEOUT = 30_000
 
 /** Run the CLI as a subprocess; `entry` selects the real CLI or the win32 sim. */
 function runDoctor(env: Record<string, string> = {}, entry = CLI): { envelope: any, exitCode: number } {
@@ -53,11 +57,11 @@ describe('git_bash wrapper detection', () => {
 
   it('passes the real shell in usr/bin', () => {
     expect(statusFor(real)).toBe('pass')
-  })
+  }, SPAWN_TIMEOUT)
 
   it('warns only on the bin/bash.exe wrapper', () => {
     expect(statusFor(wrapper)).toBe('warn')
-  })
+  }, SPAWN_TIMEOUT)
 })
 
 describe('dsh-doctor/v1 envelope', () => {
@@ -71,14 +75,14 @@ describe('dsh-doctor/v1 envelope', () => {
       expect(STATUSES).toContain(check.status)
       expect(typeof check.name).toBe('string')
     }
-  })
+  }, SPAWN_TIMEOUT)
 
   it('gives every skip a reason, which the vocabulary requires', () => {
     const { envelope } = runDoctor()
     for (const check of envelope.checks.filter((c: any) => c.status === 'skip')) {
       expect(check.detail.length).toBeGreaterThan(0)
     }
-  })
+  }, SPAWN_TIMEOUT)
 
   it('counts skip as neither pass nor fail in the exit code', () => {
     const { envelope, exitCode } = runDoctor()
@@ -87,7 +91,7 @@ describe('dsh-doctor/v1 envelope', () => {
     const expected = envelope.summary.fail > 0 ? 2 : envelope.summary.warn > 0 ? 1 : 0
     expect(envelope.exitCode).toBe(expected)
     expect(exitCode).toBe(expected)
-  })
+  }, SPAWN_TIMEOUT)
 
   it('reports the win32-only checks as skip off Windows', () => {
     if (process.platform === 'win32') return
@@ -97,7 +101,7 @@ describe('dsh-doctor/v1 envelope', () => {
     for (const name of ['git_bash', 'powershell', 'koffi', 'sandbox_shell']) {
       expect(byName[name]).toBe('skip')
     }
-  })
+  }, SPAWN_TIMEOUT)
 
   // #17: the runtime lives in the bundle inside the profile, so a machine can
   // run a new CLI against an old runtime with every check green. The version
@@ -108,7 +112,7 @@ describe('dsh-doctor/v1 envelope', () => {
     const bundle = envelope.checks.find((c: any) => c.name === 'dsh-win32/bundle')
     expect(bundle).toBeDefined()
     expect(['pass', 'warn']).toContain(bundle.status)
-  })
+  }, SPAWN_TIMEOUT)
 
   // #13: a clean box has node and Git but no pnpm, and the bundle wiring dies
   // on it with a bare "'pnpm' is not recognized". The check is platform-
@@ -119,5 +123,5 @@ describe('dsh-doctor/v1 envelope', () => {
     const pnpm = envelope.checks.find((c: any) => c.name === 'pnpm')
     expect(pnpm).toBeDefined()
     expect(['pass', 'warn']).toContain(pnpm.status)
-  })
+  }, SPAWN_TIMEOUT)
 })
