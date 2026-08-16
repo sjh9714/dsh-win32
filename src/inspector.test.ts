@@ -116,6 +116,96 @@ describe('WindowsProcessInspector', () => {
     })
   })
 
+  describe('background jobs stay attached, so foreground is resolved over time (#11)', () => {
+    /** Drive the inspector through a scripted sequence of console readings. */
+    function sequence(readings: number[][]) {
+      let index = 0
+      const inspector = new WindowsProcessInspector({
+        exec: () => SNAPSHOT.join('\r\n'),
+        kill: () => {},
+        now: () => 0,
+        consoleProcessList: () => ({ pids: [...readings[Math.min(index, readings.length - 1)]!, 100], self: 9001 }),
+      })
+      return () => {
+        const value = inspector.foregroundPgid(100)
+        index += 1
+        return value
+      }
+    }
+
+    it('reports the shell once a foreground command has come and gone beside a background job', () => {
+      // 200 is backgrounded first, then 300 runs in the foreground and exits.
+      const next = sequence([
+        [],           // idle
+        [200],        // `sleep &` job appears; indistinguishable at this instant
+        [200, 300],   // a foreground command starts
+        [200, 300],   // still running
+        [200],        // it exits, and 200 is exposed as the background job
+        [200],        // stays exposed
+      ])
+      expect(next()).toBe(100)
+      expect(next()).toBe(200)
+      expect(next()).toBe(300)
+      expect(next()).toBe(300)
+      expect(next()).toBe(100)
+      expect(next()).toBe(100)
+    })
+
+    it('does not let a stale console entry hand the foreground back to a background job', () => {
+      // The console list outlives exit, and the CIM snapshot does not know 310,
+      // so an unguarded newest-of pick would fall back to 200 mid-command.
+      const next = sequence([
+        [],
+        [200],
+        [200, 310],
+        [200, 310],
+        [200, 310],
+      ])
+      next()
+      next()
+      expect(next()).toBe(310)
+      expect(next()).toBe(310)
+      expect(next()).toBe(310)
+    })
+
+    it('keeps resolving later foreground commands once a job is known to be resting', () => {
+      const next = sequence([
+        [], [200], [200, 300], [200], [200, 310], [200], [200],
+      ])
+      next(); next(); next()
+      expect(next()).toBe(100)
+      expect(next()).toBe(310)
+      expect(next()).toBe(100)
+      expect(next()).toBe(100)
+    })
+
+    it('drops a resting job from memory when it exits', () => {
+      const next = sequence([
+        [], [200], [200, 300], [200], [], [300],
+      ])
+      next(); next(); next(); next()
+      expect(next()).toBe(100)
+      // 300 reappearing is a new command, not the resting entry it once was.
+      expect(next()).toBe(300)
+    })
+
+    it('forgets per-terminal state when the console can no longer be read', () => {
+      let list: ConsoleProcessList | undefined = { pids: [100, 200, 9001], self: 9001 }
+      const inspector = new WindowsProcessInspector({
+        exec: () => SNAPSHOT.join('\r\n'),
+        kill: () => {},
+        now: () => 0,
+        consoleProcessList: () => list,
+      })
+      inspector.foregroundPgid(100)
+      list = undefined
+      expect(inspector.foregroundPgid(100)).toBeUndefined()
+      list = { pids: [100, 200, 9001], self: 9001 }
+      // State was dropped with the terminal, so 200 is a fresh command again.
+      expect(inspector.foregroundPgid(100)).toBe(200)
+    })
+  })
+
   it('signals through taskkill, forcing only SIGKILL', () => {
     const log: string[][] = []
     const inspector = fakeInspector([], log)
