@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toPortableEval, wrapTerminalHandle } from './terminal-wrap.ts'
+import { patchTerminalKill, toPortableEval, wrapTerminalHandle } from './terminal-wrap.ts'
 
 function fakeHandle() {
   const writes: string[] = []
@@ -120,5 +120,32 @@ describe('toPortableEval', () => {
       `printf '%s\\n' $'S1'; eval -- $'no tail'`,
     ]
     for (const data of notWrappers) expect(toPortableEval(data)).toBe(data)
+  })
+})
+
+describe('patchTerminalKill', () => {
+  it('drops the signal argument node-pty rejects on Windows', () => {
+    const calls: unknown[][] = []
+    const handle = { terminal: { kill: (...args: unknown[]) => { calls.push(args) } } }
+    expect(patchTerminalKill(handle)).toBe(true)
+    handle.terminal.kill('SIGTERM')
+    handle.terminal.kill('SIGKILL')
+    expect(calls).toEqual([[], []])
+  })
+
+  it('is idempotent, so a second spawn does not stack wrappers', () => {
+    let depth = 0
+    const handle = { terminal: { kill: () => { depth += 1 } } }
+    patchTerminalKill(handle)
+    patchTerminalKill(handle)
+    handle.terminal.kill()
+    expect(depth).toBe(1)
+  })
+
+  it('reports false for a pty shape it does not recognise', () => {
+    expect(patchTerminalKill(undefined)).toBe(false)
+    expect(patchTerminalKill({})).toBe(false)
+    expect(patchTerminalKill({ terminal: {} })).toBe(false)
+    expect(patchTerminalKill({ terminal: { kill: 'not a function' } })).toBe(false)
   })
 })

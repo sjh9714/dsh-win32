@@ -14,7 +14,7 @@ import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { WindowsProcessInspector } from './inspector.ts'
 import { installPresets } from './preset-install.ts'
 import { collectStream } from './shell-decode.ts'
-import { wrapTerminalHandle } from './terminal-wrap.ts'
+import { patchTerminalKill, wrapTerminalHandle } from './terminal-wrap.ts'
 
 export { WindowsProcessInspector } from './inspector.ts'
 export type { ProcessIdentity, WindowsInspectorInternals } from './inspector.ts'
@@ -56,9 +56,17 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
 
   override async spawnTerminal(spec: Parameters<LocalSubprocessRuntime['spawnTerminal']>[0]): ReturnType<LocalSubprocessRuntime['spawnTerminal']> {
     const handle = await super.spawnTerminal(spec)
+    if (process.platform !== 'win32') return handle
+    // `stopShell` calls kill with a signal name, which node-pty rejects on
+    // Windows, so without this both grace windows expire before the tree-kill
+    // fallback does the work. Losing it is slow, not broken, so a pty shape we
+    // do not recognise is worth saying out loud rather than failing the spawn.
+    if (!patchTerminalKill(handle)) {
+      this.ctx?.logger?.warn?.('dsh-win32: pty exposes no kill to patch; terminal teardown will wait out both grace windows')
+    }
     // On win32 the foreground-group signal path cannot exist; deliver
     // keyboard-equivalent signals as PTY input instead (Ctrl-C injection).
-    return process.platform === 'win32' ? wrapTerminalHandle(handle) : handle
+    return wrapTerminalHandle(handle)
   }
 
   override spawn(spec: Parameters<LocalSubprocessRuntime['spawn']>[0]): ReturnType<LocalSubprocessRuntime['spawn']> {

@@ -44,10 +44,22 @@ const DEFAULT_INTERNALS: WindowsInspectorInternals = {
   consoleProcessList: shellPid => queryConsoleProcessList(shellPid),
 }
 
-/** One CIM enumeration costs ~900ms on a busy box (#8); terminate polls every
- * 25ms per member. A short TTL turns N-per-tick execs into at most one, and
- * staleness only errs safe (a just-exited pid costs one extra tick). */
-const SNAPSHOT_TTL_MS = 200
+/**
+ * Floor for how long a process-table snapshot stays usable (#8). Terminate polls
+ * every 25ms per member, so a short TTL turns N execs per tick into one.
+ *
+ * A fixed 200ms was self-defeating: the enumeration it caches costs ~1300ms on a
+ * busy box, so back-to-back callers always found the entry expired and paid full
+ * price every time. `terminate()` alone issued nine, ~12s of a 20s teardown. The
+ * TTL therefore also tracks the cost of the last fill, which self-tunes to the
+ * machine rather than assuming a number.
+ *
+ * Widening this does not delay noticing a death. `isAlive` settles the dead case
+ * through `kill(pid, 0)` before it ever reads the snapshot, so staleness only
+ * affects confirming a pid that is still alive, and the identity check bounds
+ * pid reuse to one TTL.
+ */
+const SNAPSHOT_TTL_FLOOR_MS = 200
 
 // Culture-invariant snapshot: pid, ppid, creation time as FILETIME int64.
 const LIST_COMMAND = '$ErrorActionPreference="Stop"; Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,CreationDate | ForEach-Object { '
@@ -86,14 +98,15 @@ function startedAfter(a: string, b: string): boolean {
 }
 
 export class WindowsProcessInspector {
-  private cached: { at: number, rows: ProcessRow[] } | undefined
+  private cached: { at: number, rows: ProcessRow[], ttl: number } | undefined
   private readonly terminals = new Map<number, TerminalForegroundState>()
 
   constructor(private readonly internals: WindowsInspectorInternals = DEFAULT_INTERNALS) {}
 
   private snapshot(): ProcessRow[] {
     const now = this.internals.now()
-    if (this.cached !== undefined && now - this.cached.at < SNAPSHOT_TTL_MS) return this.cached.rows
+    if (this.cached !== undefined && now - this.cached.at < this.cached.ttl) return this.cached.rows
+    const startedAt = now
     let output: string
     try {
       output = this.internals.exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', LIST_COMMAND])
@@ -109,7 +122,10 @@ export class WindowsProcessInspector {
       if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue
       rows.push({ pid, ppid, started: parts[2] })
     }
-    this.cached = { at: now, rows }
+    // Timed after the fill, so the entry outlives the cost of producing it and a
+    // second caller in the same burst is served from memory instead of paying again.
+    const filledAt = this.internals.now()
+    this.cached = { at: filledAt, rows, ttl: Math.max(SNAPSHOT_TTL_FLOOR_MS, filledAt - startedAt) }
     return rows
   }
 

@@ -232,6 +232,28 @@ describe('WindowsProcessInspector', () => {
     expect(log.length).toBe(2)
   })
 
+
+  it('keeps a snapshot at least as long as the fill cost, so a burst pays once', () => {
+    // A fixed TTL shorter than the enumeration it caches expires before the next
+    // caller arrives, which is how terminate paid for nine of them (#8 follow-up).
+    const log: string[][] = []
+    let clock = 0
+    const inspector = new WindowsProcessInspector({
+      exec(file, args) { log.push([file, ...args]); clock += 1300; return SNAPSHOT.join('\r\n') },
+      kill() {},
+      now: () => clock,
+      consoleProcessList: () => undefined,
+    })
+    inspector.processTree(100)
+    expect(log.length).toBe(1)
+    clock += 900
+    inspector.processTree(100)
+    expect(log.length, 'still inside the measured fill cost').toBe(1)
+    clock += 500
+    inspector.processTree(100)
+    expect(log.length, 'past it, so a fresh read').toBe(2)
+  })
+
   it('short-circuits isAlive for dead pids without any exec (#8)', () => {
     const log: string[][] = []
     const inspector = fakeInspector(SNAPSHOT, log, { deadPids: [200] })
