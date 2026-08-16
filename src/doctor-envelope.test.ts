@@ -107,11 +107,24 @@ describe('dsh-doctor/v1 envelope', () => {
   // run a new CLI against an old runtime with every check green. The version
   // has to be visible in the report. Vendor-prefixed because it is not a
   // dsh-doctor/v1 vocabulary name.
+  // `skip` is in the set because a box with no wired profile has nothing to
+  // compare the CLI against, which is the co-drafted `installed_bundle` cell
+  // (#1719). CI is exactly that box, and a developer machine usually is not,
+  // so asserting only pass/warn passes locally and fails in CI.
   it('reports the wired bundle version under a vendor-prefixed name', () => {
     const { envelope } = runDoctor()
     const bundle = envelope.checks.find((c: any) => c.name === 'dsh-win32/bundle')
     expect(bundle).toBeDefined()
-    expect(['pass', 'warn']).toContain(bundle.status)
+    expect(['pass', 'warn', 'skip']).toContain(bundle.status)
+    // Whatever the cell, the contract needs a reason on it.
+    expect(bundle.detail).toBeTruthy()
+  }, SPAWN_TIMEOUT)
+
+  it('skips the bundle check, with a reason, when no profile is wired', () => {
+    const { envelope } = runDoctor({ DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-doctor-empty-')) })
+    const bundle = envelope.checks.find((c: any) => c.name === 'dsh-win32/bundle')
+    expect(bundle.status).toBe('skip')
+    expect(bundle.detail).toMatch(/nothing to compare/i)
   }, SPAWN_TIMEOUT)
 
   // #13: a clean box has node and Git but no pnpm, and the bundle wiring dies
