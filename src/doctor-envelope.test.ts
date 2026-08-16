@@ -7,17 +7,24 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 import { describe, expect, it } from 'vitest'
 
-const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'cli.mjs')
+const here = dirname(fileURLToPath(import.meta.url))
+const CLI = join(here, '..', 'bin', 'cli.mjs')
+const SIM = join(here, '..', 'scripts', 'win32-sim.mjs')
 const STATUSES = ['pass', 'warn', 'fail', 'skip']
 
-function runDoctor(): { envelope: any, exitCode: number } {
+/** Run the CLI as a subprocess; `entry` selects the real CLI or the win32 sim. */
+function runDoctor(env: Record<string, string> = {}, entry = CLI): { envelope: any, exitCode: number } {
+  const options = { encoding: 'utf8' as const, env: { ...process.env, ...env } }
+  const args = entry === CLI ? [entry, 'doctor', '--json'] : [entry]
   try {
-    return { envelope: JSON.parse(execFileSync(process.execPath, [CLI, 'doctor', '--json'], { encoding: 'utf8' })), exitCode: 0 }
+    return { envelope: JSON.parse(execFileSync(process.execPath, args, options)), exitCode: 0 }
   } catch (error) {
     // A warn or fail finding is a non-zero exit, which execFileSync throws on.
     const failure = error as { status: number, stdout: string }
@@ -27,18 +34,29 @@ function runDoctor(): { envelope: any, exitCode: number } {
 
 // Windows CI caught this shipping inverted: the real shell lives at
 // Git\usr\bin\bash.exe, which also ends in \bin\bash.exe, so a tail-only match
-// told every correctly installed user their shell was the 47KB wrapper.
-describe('isBashWrapper', () => {
-  it('accepts the real shell and rejects only the wrapper', async () => {
-    // Built as a file: URL rather than a relative specifier. Windows resolves
-    // the latter to a `C:\...` path, which is not a valid URL for the ESM
-    // loader, so a relative dynamic import fails there and only there.
-    const { isBashWrapper } = await import(pathToFileURL(CLI).href) as { isBashWrapper: (path: string) => boolean }
-    expect(isBashWrapper('C:\\Program Files\\Git\\usr\\bin\\bash.exe')).toBe(false)
-    expect(isBashWrapper('C:/Program Files/Git/usr/bin/bash.exe')).toBe(false)
-    expect(isBashWrapper('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true)
-    expect(isBashWrapper('C:/Program Files/Git/bin/bash.exe')).toBe(true)
-    expect(isBashWrapper('/bin/bash')).toBe(false)
+// told every correctly installed user their shell was the 47KB wrapper. The
+// check runs through the real CLI under a forced win32 platform, since the
+// point is the behaviour Windows users get, not an isolated regex.
+describe('git_bash wrapper detection', () => {
+  const fixtures = mkdtempSync(join(tmpdir(), 'dsh-win32-bashfix-'))
+  const real = join(fixtures, 'Git', 'usr', 'bin', 'bash.exe')
+  const wrapper = join(fixtures, 'Git', 'bin', 'bash.exe')
+  for (const path of [real, wrapper]) {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, '')
+  }
+
+  const statusFor = (bash: string) => {
+    const { envelope } = runDoctor({ CLI_ARGS: 'doctor --json', DSH_WINDOWS_BASH: bash, DSH_HOME: join(fixtures, 'home') }, SIM)
+    return envelope.checks.find((c: any) => c.name === 'git_bash').status
+  }
+
+  it('passes the real shell in usr/bin', () => {
+    expect(statusFor(real)).toBe('pass')
+  })
+
+  it('warns only on the bin/bash.exe wrapper', () => {
+    expect(statusFor(wrapper)).toBe('warn')
   })
 })
 
