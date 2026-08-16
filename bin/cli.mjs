@@ -6,11 +6,13 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
+// Shared with the runtime so the two never drift; lib/ always ships with bin/.
+import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
 
 const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
@@ -29,28 +31,6 @@ function tryExec(file, args) {
   } catch {
     return undefined
   }
-}
-
-/** Locate a Git Bash bash.exe, never the WSL launcher in System32. */
-function findGitBash() {
-  const explicit = process.env.DSH_WINDOWS_BASH
-  if (explicit !== undefined && existsSync(explicit)) return explicit
-  const roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Programs')]
-  for (const root of roots) {
-    if (root === undefined) continue
-    // usr\bin is the real shell; bin\bash.exe is a 47KB wrapper that respawns
-    // it, leaving the PTY pid pointing at the wrapper (#7's SIGKILL-guard trap).
-    for (const rel of [['Git', 'usr', 'bin', 'bash.exe'], ['Git', 'bin', 'bash.exe']]) {
-      const candidate = join(root, ...rel)
-      if (existsSync(candidate)) return candidate
-    }
-  }
-  const located = tryExec('where.exe', ['bash'])
-  for (const line of (located ?? '').split(/\r?\n/)) {
-    const path = line.trim()
-    if (path !== '' && !/system32/i.test(path) && existsSync(path)) return path
-  }
-  return undefined
 }
 
 function findPwsh7() {
@@ -264,15 +244,12 @@ function fix() {
   ok('koffi pinned; restart dsh web')
 }
 
+/** setup rewrites on purpose: the user asked for this shell explicitly. */
 function substitutePreset(presetId, shellPath) {
-  const sourceDir = join(dirname(PRESET_SRC), presetId)
   const targetDir = join(DSH_HOME, '.agent-presets', presetId)
-  mkdirSync(targetDir, { recursive: true })
-  const forwardSlashes = shellPath.replaceAll('\\', '/')
-  const roster = readFileSync(join(sourceDir, 'agent.cordis.yml'), 'utf8')
-    .replaceAll('__DSH_WINDOWS_BASH__', forwardSlashes)
-  writeFileSync(join(targetDir, 'agent.cordis.yml'), roster)
-  writeFileSync(join(targetDir, 'preset.yml'), readFileSync(join(sourceDir, 'preset.yml'), 'utf8'))
+  rmSync(targetDir, { recursive: true, force: true })
+  const outcome = installPreset(presetId, shellPath, DSH_HOME)
+  if (outcome.status === 'failed') throw new Error(`preset ${presetId} could not be written: ${outcome.detail}`)
   return targetDir
 }
 
@@ -280,7 +257,7 @@ const BUSYBOX_URL = 'https://frippery.org/files/busybox/busybox64.exe'
 
 /** busybox-w32 is GPLv2 and therefore never bundled; fetched on explicit consent. */
 async function ensureBusybox() {
-  const target = join(DSH_HOME, 'dsh-win32', 'busybox64.exe')
+  const target = busyboxPath()
   if (existsSync(target)) return target
   console.log(`downloading busybox-w32 (GPLv2, single executable) from ${BUSYBOX_URL}`)
   console.log('project https://frippery.org/busybox, not bundled with dsh-win32, fetched on demand')

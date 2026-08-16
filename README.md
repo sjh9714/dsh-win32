@@ -30,6 +30,14 @@ Windows 上父进程链回答不了「终端里现在跑着什么」，因为 MS
 
 PowerShell 里一行。
 
+按生态惯例的一行装法，插件激活时会自动把预设装进 `$DSH_HOME/.agent-presets/`（已存在则不覆盖）。
+
+```sh
+dsh plugin --profile web add dsh-win32
+```
+
+不想手工接线的话，PowerShell 里一行全自动。
+
 ```powershell
 irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
 ```
@@ -42,7 +50,9 @@ npx dsh-win32 setup --sandboxed  # 额外装沙箱内可用的 busybox 变体
 npx dsh-win32 setup --shortcut   # 额外建桌面快捷方式
 ```
 
-预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。接入 bundle 还需要 pnpm，因为 `dsh plugin add` 是用它装进 profile 目录的。缺失时 `setup` 会通过 corepack 自动启用，`doctor` 也会单独列出该项。
+预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
+
+沙箱变体（`minimal-windows-sandboxed`）只能由 `setup --sandboxed` 安装，因为它要下载 busybox-w32，而 busybox 是 GPLv2，插件激活时静默下载既是许可问题也是同意问题。接入 bundle 还需要 pnpm，因为 `dsh plugin add` 是用它装进 profile 目录的。缺失时 `setup` 会通过 corepack 自动启用，`doctor` 也会单独列出该项。
 
 已经出问题了？`npx dsh-win32 doctor` 逐项指出已知的坑（koffi 3.1.3/3.1.4 损坏预编译导致的安装失败与选择器崩溃、缺 PowerShell 7 时 5.1 在沙箱里的 0xC0000142、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash），`npx dsh-win32 fix` 自动修复能安全修的部分。
 

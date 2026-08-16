@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process'
 import type { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { WindowsProcessInspector } from './inspector.ts'
+import { installPresets } from './preset-install.ts'
 import { collectStream } from './shell-decode.ts'
 import { wrapTerminalHandle } from './terminal-wrap.ts'
 
@@ -20,6 +21,8 @@ export type { ProcessIdentity, WindowsInspectorInternals } from './inspector.ts'
 export { parseConsoleProcessList, queryConsoleProcessList } from './console-list.ts'
 export type { ConsoleProcessList } from './console-list.ts'
 export { wrapTerminalHandle } from './terminal-wrap.ts'
+export { findGitBash, installPreset, installPresets, busyboxPath, dshHome } from './preset-install.ts'
+export type { InstallOutcome, PresetId } from './preset-install.ts'
 
 export const name = 'subprocess-windows'
 
@@ -38,6 +41,15 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
         taskkill: pid => {
           spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
         },
+      }
+      // Presets are plain directories under $DSH_HOME/.agent-presets, so the
+      // plugin can put its own there and `dsh plugin add dsh-win32` becomes a
+      // complete install rather than a half one. Idempotent, and it never
+      // throws, so a preset that cannot be written does not take the
+      // subprocess runtime down with it.
+      for (const outcome of installPresets()) {
+        if (outcome.status === 'installed') ctx.logger?.info?.(`dsh-win32: installed preset ${outcome.presetId} at ${outcome.detail}`)
+        else if (outcome.status === 'failed') ctx.logger?.warn?.(`dsh-win32: preset ${outcome.presetId} not installed (${outcome.detail})`)
       }
     }
   }

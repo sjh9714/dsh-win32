@@ -29,6 +29,14 @@ dsh-win32 closes that gap with three pieces.
 
 One line, in PowerShell.
 
+The ecosystem-convention one-liner. Activating the plugin installs the preset into `$DSH_HOME/.agent-presets/`, and never overwrites one that is already there.
+
+```sh
+dsh plugin --profile web add dsh-win32
+```
+
+Or let a script do the wiring, in PowerShell.
+
 ```powershell
 irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
 ```
@@ -40,7 +48,9 @@ npx dsh-win32 setup              # bundle + preset + health report
 npx dsh-win32 setup --shortcut   # same, plus the desktop shortcut
 ```
 
-The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). Wiring the bundle also needs pnpm, because `dsh plugin add` installs into the profile directory with it. `setup` enables pnpm through corepack when it is missing, and `doctor` reports it either way.
+The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`).
+
+The sandboxed variant (`minimal-windows-sandboxed`) only installs through `setup --sandboxed`, because it needs busybox-w32 and busybox is GPLv2. Downloading it silently during plugin activation would be both a licence and a consent problem. Wiring the bundle also needs pnpm, because `dsh plugin add` installs into the profile directory with it. `setup` enables pnpm through corepack when it is missing, and `doctor` reports it either way.
 
 Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
 
