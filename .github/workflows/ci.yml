@@ -26,6 +26,9 @@ jobs:
       - name: foreground legacy-encoding smoke
         timeout-minutes: 5
         run: node scripts/encoding-smoke.mjs
+      - name: foreground resolution smoke (#7)
+        timeout-minutes: 5
+        run: node scripts/foreground-smoke.mjs
       - name: doctor + setup smoke
         shell: bash
         run: |

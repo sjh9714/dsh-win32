@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | 让 DeepSeek Harness 在 Windows 上成为一等公民",
   "type": "module",
   "license": "MIT",

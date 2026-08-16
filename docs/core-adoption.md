@@ -12,6 +12,7 @@ Everything the core team needs to absorb the Windows process inspector, in one p
 |---|---|---|
 | [`src/inspector.ts`](../src/inspector.ts) | `WindowsProcessInspector` implementing the `ProcessInspector` contract | ~130 |
 | [`src/terminal-wrap.ts`](../src/terminal-wrap.ts) | Ctrl-C injection for `signalForeground` (keyboard-equivalent signals as PTY input, the ConPTY convention) | ~50 |
+| [`src/console-list.ts`](../src/console-list.ts) | ConPTY console process list behind a one-shot helper, the win32 foreground mapping | ~130 |
 | [`src/inspector.test.ts`](../src/inspector.test.ts), [`src/terminal-wrap.test.ts`](../src/terminal-wrap.test.ts) | Unit specs (injectable OS boundary, no mocking framework) | ~120 |
 
 Zero runtime dependencies beyond `node:child_process`. No koffi, no native code. The OS boundary is a small injectable (`exec`, `kill`, `now`), same shape as your `ProcessInspectorInternals`.
@@ -24,11 +25,11 @@ Zero runtime dependencies beyond `node:child_process`. No koffi, no native code.
 | `isAlive(identity)` | snapshot lookup, pid AND start-identity match | full fidelity |
 | `signalProcess(identity, sig)` | `taskkill /PID` (`/F` for SIGKILL), exited targets are success | full fidelity for kill sweeps |
 | `signalGroup(pgid, sig)` | `taskkill /PID <pgid> /T` defensively | unreachable in practice (see next row) |
-| `foregroundPgid(shellPid)` | returns `undefined` | honest degradation, no process groups on Windows |
+| `foregroundPgid(shellPid)` | ConPTY console process list via a one-shot helper (`getConsoleProcessList`, ~81ms), self and shell filtered out, newest attachment when a pipeline gives several | real mapping, not a degradation |
 | `isStdinWaiting(pgid)` | returns `false` | honest degradation |
 | `processSession(sessionId)` | returns `[]` | honest degradation, no POSIX sessions |
 
-The degradations are not free (credit [#7](https://github.com/sjh9714/dsh-win32/issues/7)). With `foregroundPgid` undefined, terminal-bash's readiness check loses its shell-vs-child discriminator (`undefined === undefined` passes silently), leaving prompt markers and silence as the only completion signals. A real win32 mapping exists, ConPTY's console process list (`getConsoleProcessList`, already bound in node-pty, ~81ms measured via a helper process), and it is the tracked follow-up. Mid-command cancel (the SIGINT path in `terminal-bash`'s `interruptOnce`) is restored by `terminal-wrap.ts`. SIGINT/SIGTSTP are delivered as `\x03`/`\x1a` PTY input, which MSYS bash and busybox ash forward to the foreground job. SIGTERM/SIGKILL against a foreground process keep the stock throwing behavior rather than pretending delivery.
+Foreground resolution is a real mapping as of v0.7.0, contributed by [@hili986](https://github.com/sjh9714/dsh-win32/pull/9) after [#7](https://github.com/sjh9714/dsh-win32/issues/7) showed the cost of returning undefined (terminal-bash's readiness check lost its shell-vs-child discriminator, since `undefined === undefined` passes silently). Parent links cannot answer this on Windows because MSYS fork emulation severs the chain, measured: a Git Bash PTY running `sleep 20` reports no direct children while the console list still shows the sleep. Console attachment is a property of the console, so it survives. `isStdinWaiting` stays `false` deliberately, since Windows has no reliable console-read-block probe and a false wait would settle a running command. Mid-command cancel (the SIGINT path in `terminal-bash`'s `interruptOnce`) is restored by `terminal-wrap.ts`. SIGINT/SIGTSTP are delivered as `\x03`/`\x1a` PTY input, which MSYS bash and busybox ash forward to the foreground job. SIGTERM/SIGKILL against a foreground process keep the stock throwing behavior rather than pretending delivery.
 
 ## Evidence (all public, all reproducible)
 
