@@ -6,7 +6,6 @@
 
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
-<a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/dm/dsh-win32?style=flat-square&label=downloads" alt="downloads"></a>
 <a href="https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sjh9714/dsh-win32/ci.yml?style=flat-square&label=CI" alt="CI"></a>
 <a href="https://github.com/sjh9714/dsh-win32/stargazers"><img src="https://img.shields.io/github/stars/sjh9714/dsh-win32?style=flat-square" alt="stars"></a>
 <img src="https://img.shields.io/badge/platform-win32-0078D4?style=flat-square" alt="win32">

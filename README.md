@@ -6,7 +6,6 @@
 
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
-<a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/dm/dsh-win32?style=flat-square&label=downloads" alt="downloads"></a>
 <a href="https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sjh9714/dsh-win32/ci.yml?style=flat-square&label=CI" alt="CI"></a>
 <a href="https://github.com/sjh9714/dsh-win32/stargazers"><img src="https://img.shields.io/github/stars/sjh9714/dsh-win32?style=flat-square" alt="stars"></a>
 <img src="https://img.shields.io/badge/platform-win32-0078D4?style=flat-square" alt="win32">
@@ -64,9 +63,9 @@ this.policy = ctx.fs.sandboxMode === undefined ? undefined : ctx.get('sandboxPol
 
 裸后端下这里是 `undefined`，于是**没有任何写入围栏**。权限徽章写着 Read Only，编辑器照样能改机器上任意绝对路径的文件。读能穿透是设计如此（`fs-sandbox` 在所有模式下也放行读），写能穿透不是。已上报 [#2066](https://github.com/deepseek-ai/deepseek-harness/discussions/2066)。
 
-沙箱预设换成了会围栏的后端，GBK/UTF-16 读取解码照旧。`read-only` 拒绝一切写入，`workspace-write` 拒绝工作区、`/tmp`、系统临时目录之外的写入。`npx dsh-win32 doctor` 里的 `write_fence` 一项会告诉你装的是哪个版本。
+**两个预设都换成了会围栏的后端**，GBK/UTF-16 读取解码照旧。`read-only` 拒绝一切写入，`workspace-write` 拒绝工作区、`/tmp`、系统临时目录之外的写入。`npx dsh-win32 doctor` 里的 `write_fence` 一项会告诉你装的是哪个版本。
 
-两个预设都换成了会围栏的后端。Git Bash 预设的 **shell** 确实要求 `danger-full-access`，但**编辑器是另一个工具**，跟 shell 起没起来无关。所以徽章停在 Read Only 的会话，本来会是「shell 用不了 + 编辑器能改机器上任何文件」。`danger-full-access` 下围栏是直通的，所以这样接在预期模式下零代价，在非预期模式下把洞堵上。
+Git Bash 预设一开始没接，理由是它本来就要求 `danger-full-access`。那个理由用错了工具。要求 `danger-full-access` 的是 **shell**，因为 MSYS 在受限令牌下起不来；**编辑器是另一个工具**，跟 shell 起没起来无关。所以徽章停在 Read Only 的会话，会是「shell 用不了 + 编辑器能改机器上任何文件」。`danger-full-access` 下围栏是直通的，所以接上去在预期模式下零代价，在非预期模式下把洞堵上。v0.11.1 起两个都接了。
 
 ## 为什么会这样
 
@@ -103,7 +102,7 @@ MSYS 的 fork 模拟会切断父子链。实测很直白，Git Bash 的 PTY 里�
 
 ### 旧编码文件读不了
 
-官方 fs 对 GBK / UTF-16 文件返回 `FS_NOT_TEXT` 直接拒读，国内老项目里这种文件一大把，Agent 连打开都做不到。两个预设都挂了 `dsh-win32/fs`，读取路径自动嗅探解码。写入保持 UTF-8，所以编辑一个旧编码文件会把它转成 UTF-8，不做往返。
+官方 fs 对 GBK / UTF-16 文件返回 `FS_NOT_TEXT` 直接拒读，国内老项目里这种文件一大把，Agent 连打开都做不到。两个预设都挂了 `dsh-win32/fs-confined`，读取路径自动嗅探解码（同时按会话权限模式围栏写入，见上面第 ④ 条）。写入保持 UTF-8，所以编辑一个旧编码文件会把它转成 UTF-8，不做往返。
 
 ## 其它安装方式
 
