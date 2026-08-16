@@ -17,6 +17,8 @@ import { wrapTerminalHandle } from './terminal-wrap.ts'
 
 export { WindowsProcessInspector } from './inspector.ts'
 export type { ProcessIdentity, WindowsInspectorInternals } from './inspector.ts'
+export { parseConsoleProcessList, queryConsoleProcessList } from './console-list.ts'
+export type { ConsoleProcessList } from './console-list.ts'
 export { wrapTerminalHandle } from './terminal-wrap.ts'
 
 export const name = 'subprocess-windows'

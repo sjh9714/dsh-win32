@@ -49,7 +49,7 @@ npx dsh-win32 setup --shortcut   # 同上，外加桌面快捷方式
 
 ## 诚实的限制（v0.5）
 
-- 长命令中断已通过 Ctrl-C 注入实现（SIGINT/SIGTSTP 作为 PTY 输入，ConPTY 惯例）。对前台进程的 SIGTERM/SIGKILL 在 Windows 上仍不支持，并如实报错。v0.5 起终端清理失败会回退到 `taskkill /T /F`（直接拉起的控制台程序可能扛过 ConPTY kill）。
+- 长命令中断已通过 Ctrl-C 注入实现（SIGINT/SIGTSTP 作为 PTY 输入，ConPTY 惯例）。对前台进程的 SIGTERM/SIGKILL 现在会通过 ConPTY console 列表解析出该命令并整树终止。真正没有 win32 对应物的是 stdin 等待探测，它恒为 `false`，因此命令完成仍靠提示符标记判定，而非精确的 stdin 探测。v0.5 起终端清理失败会回退到 `taskkill /T /F`（直接拉起的控制台程序可能扛过 ConPTY kill）。
 - MSYS bash 在 `workspace-write` 受限令牌下仍然启动即死（实测签名 `TokenDefaultDacl, 0xC0000022`），所以 Git Bash 预设需要 `danger-full-access`。busybox 变体（`minimal-windows-sandboxed`）是沙箱内的答案；代价是 ash 而非 bash（没有数组、没有 `[[ ]]`）。
 - 旧代码页原生工具的 PTY 输出无法在插件层重新解码：node-pty 在任何 DSH 代码运行之前就按 UTF-8 解码，且在 Windows 上拒绝编码覆盖。Git Bash 和 busybox 默认 UTF-8，随附预设不受影响。
 - 基于 DSH `0.1.0-rc.6` 开发。DSH 是开发者预览版，官方已声明会有破坏性变更。版本锁定，每次 rc 更新快速跟进。

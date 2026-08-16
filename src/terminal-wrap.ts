@@ -10,9 +10,10 @@
  * whatever is running, exactly like a user pressing Ctrl-C. Git Bash (MSYS)
  * forwards ^C as SIGINT to its foreground job.
  *
- * SIGINT and SIGTSTP map to control characters. SIGTERM/SIGKILL/SIGHUP have
- * no keyboard equivalent and keep the stock (throwing) behavior rather than
- * pretending a delivery happened.
+ * SIGINT and SIGTSTP map to control characters. SIGTERM/SIGKILL/SIGHUP have no
+ * keyboard equivalent and stay on the stock path, which since the console-list
+ * inspector resolves a real foreground now tree-kills that command rather than
+ * throwing "cannot resolve foreground process group".
  */
 
 import { spawnSync } from 'node:child_process'

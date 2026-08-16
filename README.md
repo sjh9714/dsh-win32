@@ -53,7 +53,7 @@ Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh
 
 ## Honest limitations (v0.5)
 
-- Interrupting a running command works through Ctrl-C injection (SIGINT/SIGTSTP as PTY input, the ConPTY convention). SIGTERM/SIGKILL against a foreground process stay unsupported on Windows and error honestly. Since v0.5 a failed terminal teardown falls back to `taskkill /T /F` (directly spawned console apps can survive a ConPTY kill).
+- Interrupting a running command works through Ctrl-C injection (SIGINT/SIGTSTP as PTY input, the ConPTY convention). SIGTERM/SIGKILL against a foreground process resolve the command through the ConPTY console list and tree-kill it. What has no win32 answer is stdin-wait probing, which stays `false`, so the harness settles a finished command on the prompt marker rather than on an exact stdin probe. Since v0.5 a failed terminal teardown falls back to `taskkill /T /F` (directly spawned console apps can survive a ConPTY kill).
 - MSYS bash still dies under the `workspace-write` ACL restricted token (measured signature `cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022`), so the Git Bash preset needs `danger-full-access`. The busybox variant (`minimal-windows-sandboxed`) is the sandbox-safe answer. The trade-off is ash instead of bash (no arrays, no `[[ ]]`).
 - PTY output of legacy-codepage native tools cannot be re-decoded at the plugin layer. node-pty decodes as UTF-8 before any DSH code runs and refuses an encoding override on Windows. Git Bash and busybox default to UTF-8, so the shipped presets are unaffected.
 - Developed against DSH `0.1.0-rc.6`. DSH is a developer preview with breaking changes announced. version pinned, fast-patch policy on every rc bump.
