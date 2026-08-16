@@ -29,13 +29,15 @@ npx dsh-win32 setup --sandboxed   # 然后选预设「Minimal (Windows, sandboxe
 
 ![沙箱内的持久 shell](./assets/shot-persistent-sandboxed.png)
 
-真机截图，不是示意图。权限徽章是 `Workspace Write`，两次独立的工具调用之间 shell 变量活着。
+真机截图，不是示意图。沙箱预设在 `Workspace Write` 下跑完了一整轮真实的修 bug，跑测试看到失败、读源码定位到 `sub` 写成了加法、改掉、再跑一次拿到 `all tests passed`。底部计量行和左侧会话列表都是同一帧里的真实数据。
 
 **② 极简模式真正可用**
 
 官方 subprocess 运行时在 win32 上起 PTY 之前就抛 `terminal inspection is unsupported on platform win32`，持久 shell 和依赖它的极简模式整个不可用（官方架构笔记里标为待补项）。我们通过官方注入座补上 win32 ProcessInspector（进程树用 CIM，信号用 taskkill），**不改核心一行代码**。取消命令走 ConPTY 惯例的 Ctrl-C 注入，不再把会话打成 transport failure。
 
 ![Windows 上真正可用的极简模式](./assets/shot-persistent-gitbash.png)
+
+`export BUILD=v1` 在一次工具调用里结束，下一次独立的工具调用里 `$BUILD` 还活着，所以提交信息是 `v1`，`git log --oneline` 的输出就是证据。持久性是在真实工作里顺带证明的，不是靠专门造的标记变量。
 
 **③ 前台命令识别**（v0.7 起，社区贡献）
 
