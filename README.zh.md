@@ -42,6 +42,20 @@ npx dsh-win32 setup --shortcut   # 同上，外加桌面快捷方式
 
 已经出问题了？`npx dsh-win32 doctor` 逐项指出已知的坑，`npx dsh-win32 fix` 自动修复能安全修的部分（pin 掉损坏的 koffi 预编译）。
 
+## 自己写 preset 的注意事项（Windows）
+
+如果你的 preset 挂载 `@deepseek-ai/dsh-terminal-bash` 却不显式配 `shellPath`，默认的 `/bin/bash` 在 Windows 上会命中 `C:\Windows\System32\bash.exe`（WSL 启动器），PTY 启动即退。请显式指向真正的 shell。
+
+```yaml
+- id: terminal-bash
+  name: '@deepseek-ai/dsh-terminal-bash'
+  config:
+    shellPath: 'C:/Program Files/Git/usr/bin/bash.exe'
+    shellArgs: ['--noprofile', '--norc', '-i']
+```
+
+用 `usr/bin/bash.exe` 而不是 `bin/bash.exe`。后者是 47KB 的 wrapper，会再拉起前者，PTY 的 pid 会落在 wrapper 上而不是 shell 上。来自 #6 用户报告。
+
 ## 实证
 
 - CI 跑在真实 `windows-latest` 上：构建运行时、经它拉起持久 Git Bash PTY、验证状态跨写入保留（第一次 `STATE=x`，第二次 `echo $STATE`）。官方运行时在同一任务上必然失败，因为探测器缺口就在启动路径上。

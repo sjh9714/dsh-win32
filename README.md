@@ -42,6 +42,20 @@ The preset appears in the picker immediately. Requires [Git for Windows](https:/
 
 Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
 
+## Writing your own preset on Windows
+
+If your preset mounts `@deepseek-ai/dsh-terminal-bash` without an explicit `shellPath`, the default `/bin/bash` resolves to `C:\Windows\System32\bash.exe` on Windows, the WSL launcher, and the PTY exits at startup. Point it at the real shell instead.
+
+```yaml
+- id: terminal-bash
+  name: '@deepseek-ai/dsh-terminal-bash'
+  config:
+    shellPath: 'C:/Program Files/Git/usr/bin/bash.exe'
+    shellArgs: ['--noprofile', '--norc', '-i']
+```
+
+Use `usr/bin/bash.exe` rather than `bin/bash.exe`. The latter is a 47KB wrapper that respawns the former, so the PTY pid ends up pointing at the wrapper instead of the shell. Reported by a user in #6.
+
 ## China network note · 中国网络提示
 
 `irm raw.githubusercontent.com...` 和 busybox 的 `frippery.org` 在部分网络环境下可能无法直连。替代路径：安装用 `npx dsh-win32 setup`（npm 源可换 npmmirror），busybox 手动下载后用 `npx dsh-win32 setup --sandboxed --busybox <路径>` 指定。
