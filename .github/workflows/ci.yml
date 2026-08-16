@@ -29,6 +29,12 @@ jobs:
       - name: foreground resolution smoke (#7)
         timeout-minutes: 5
         run: node scripts/foreground-smoke.mjs
+      # Guards the fan-out from #24/#25. It sets up a three-stage pipeline and
+      # fails loudly if the stages do not start, so it cannot pass by failing to
+      # reproduce, which is how a signalling regression would otherwise hide.
+      - name: pipeline signalling smoke (#24)
+        timeout-minutes: 5
+        run: node scripts/pipeline-smoke.mjs
       - name: doctor + setup smoke
         shell: bash
         run: |
