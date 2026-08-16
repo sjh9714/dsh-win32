@@ -190,6 +190,10 @@ npx dsh-win32 doctor --json
 
 `irm raw.githubusercontent.com...` 和 busybox 的 `frippery.org` 在部分网络环境下可能无法直连。替代路径：安装用 `npx dsh-win32 setup`（npm 源可换 npmmirror），busybox 手动下载后用 `npx dsh-win32 setup --sandboxed --busybox <路径>` 指定。
 
+## 相关项目
+
+从 Claude Code 迁过来的话，[dsh-movein](https://github.com/sjh9714/dsh-movein) 一条命令把技能、MCP、hooks、子代理和权限规则整套搬进 DSH，默认先出搬家清单预演，搬完 `npx dsh-movein doctor` 随时体检。
+
 ## 贡献
 
 欢迎实机报告（[#3](../../issues/3) 收集不同 Windows 环境的结果）、issue 和 PR。v0.7 的前台解析就来自社区贡献。
