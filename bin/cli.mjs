@@ -137,7 +137,7 @@ function collectChecks() {
 
   const gitBash = WIN ? findGitBash() : undefined
   if (!WIN) {
-    for (const name of ['git_bash', 'powershell', 'koffi', 'sandbox_shell']) add(name, 'skip', NOT_WINDOWS)
+    for (const name of ['git_bash', 'powershell', 'koffi', 'sandbox_shell', 'write_fence']) add(name, 'skip', NOT_WINDOWS)
     return { checks, gitBash }
   }
 
@@ -163,6 +163,20 @@ function collectChecks() {
     add('sandbox_shell', 'pass', 'minimal-windows-sandboxed installed; persistent shell works inside workspace-write')
   } else {
     add('sandbox_shell', 'warn', 'only the Git Bash preset is installed, which needs danger-full-access. For a shell that survives the workspace-write sandbox: npx dsh-win32 setup --sandboxed')
+  }
+
+  // Stock minimal mounts the bare fs-local, which reports no sandboxMode, so
+  // tool-str-replace-editor builds no MutationPolicy and the editor can write
+  // anywhere while the badge says Read Only (deepseek-harness#2066). Our
+  // sandboxed preset mounts the confining backend instead, but a preset
+  // installed by an older CLI still has the unfenced one on disk.
+  const sandboxedYml = join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed', 'agent.cordis.yml')
+  if (!existsSync(sandboxedYml)) {
+    add('write_fence', 'skip', 'minimal-windows-sandboxed is not installed')
+  } else if (readFileSync(sandboxedYml, 'utf8').includes('dsh-win32/fs-confined')) {
+    add('write_fence', 'pass', 'the sandboxed preset fences editor writes by the session permission mode')
+  } else {
+    add('write_fence', 'warn', 'the installed sandboxed preset predates the write fence, so str_replace_editor can write outside the workspace under Read Only. Re-run: npx dsh-win32 setup --sandboxed')
   }
 
   return { checks, gitBash }

@@ -33,7 +33,7 @@ npx dsh-win32 setup --sandboxed
 
 出问题了跑 `npx dsh-win32 doctor`，它会逐项指出已知的坑。
 
-## 三件别处做不到的事
+## 四件别处做不到的事
 
 **① 沙箱里也能用持久 shell**（v0.4 起）
 
@@ -53,9 +53,24 @@ Windows 上选极简模式会直接报错，持久 shell 和依赖它的极简�
 
 Windows 上没法直接问「终端里现在跑着什么」，所以 Agent 会把还在跑的命令当成已结束。改成从 ConPTY 控制台进程列表解析后修好了，约 81ms。
 
+**④ 沙箱预设里，Read Only 真的是只读**（v0.11 起）
+
+官方极简模式挂的是裸 `fs-local`，它不上报 `sandboxMode`。而 `str_replace_editor` 正是读这个值来决定要不要建写入策略。
+
+```ts
+// tool-str-replace-editor/src/index.ts:69
+this.policy = ctx.fs.sandboxMode === undefined ? undefined : ctx.get('sandboxPolicy')
+```
+
+裸后端下这里是 `undefined`，于是**没有任何写入围栏**。权限徽章写着 Read Only，编辑器照样能改机器上任意绝对路径的文件。读能穿透是设计如此（`fs-sandbox` 在所有模式下也放行读），写能穿透不是。已上报 [#2066](https://github.com/deepseek-ai/deepseek-harness/discussions/2066)。
+
+沙箱预设换成了会围栏的后端，GBK/UTF-16 读取解码照旧。`read-only` 拒绝一切写入，`workspace-write` 拒绝工作区、`/tmp`、系统临时目录之外的写入。`npx dsh-win32 doctor` 里的 `write_fence` 一项会告诉你装的是哪个版本。
+
+Git Bash 预设不带围栏，因为它本来就要求 `danger-full-access`，那个模式下所有写入都是放行的。
+
 ## 为什么会这样
 
-上面三条的根因。想知道自己撞的是不是这些，或者自己写 preset 会不会踩到，看这里。
+上面几条的根因。想知道自己撞的是不是这些，或者自己写 preset 会不会踩到，看这里。
 
 ### 报错 `terminal inspection is unsupported on platform win32`
 

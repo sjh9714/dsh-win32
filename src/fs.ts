@@ -84,26 +84,37 @@ export function decodeLegacy(bytes: Uint8Array, verdict: SniffVerdict): string {
 
 export const name = 'fs-win32'
 
-export default class Win32FileSystem extends LocalFileSystem {
-  private async legacyText(target: FsTargetLike, signal: AbortSignal | undefined): Promise<string | undefined> {
-    const head = await this.readBytes(target as never, signal, SNIFF_BYTES)
-    const verdict = sniff(head)
-    if (verdict === 'utf8' || verdict === 'unknown') return undefined
-    const whole = head.length < SNIFF_BYTES ? head : await this.readBytes(target as never, signal, LEGACY_MAX_BYTES)
-    // At the cap the file may be truncated; fall back to stock behavior
-    // (its own size/error semantics) rather than return a silent partial.
-    if (whole.length >= LEGACY_MAX_BYTES) return undefined
-    return decodeLegacy(whole, verdict)
-  }
+type ReadBytes = (target: never, signal: AbortSignal | undefined, cap: number) => Promise<Uint8Array>
 
+/**
+ * The READ-path decode, factored out of the class so both backends can use it.
+ * `dsh-win32/fs` layers it over the bare `fs-local`; `dsh-win32/fs-confined`
+ * layers it over `fs-sandbox` so the same decoding comes with a write fence.
+ */
+export async function legacyText(
+  readBytes: ReadBytes,
+  target: FsTargetLike,
+  signal: AbortSignal | undefined,
+): Promise<string | undefined> {
+  const head = await readBytes(target as never, signal, SNIFF_BYTES)
+  const verdict = sniff(head)
+  if (verdict === 'utf8' || verdict === 'unknown') return undefined
+  const whole = head.length < SNIFF_BYTES ? head : await readBytes(target as never, signal, LEGACY_MAX_BYTES)
+  // At the cap the file may be truncated; fall back to stock behavior
+  // (its own size/error semantics) rather than return a silent partial.
+  if (whole.length >= LEGACY_MAX_BYTES) return undefined
+  return decodeLegacy(whole, verdict)
+}
+
+export default class Win32FileSystem extends LocalFileSystem {
   override async readText(target: FsTargetLike, signal?: AbortSignal): Promise<string> {
-    const legacy = await this.legacyText(target, signal).catch(() => undefined)
+    const legacy = await legacyText((t, s, c) => this.readBytes(t, s, c), target, signal).catch(() => undefined)
     if (legacy !== undefined) return legacy
     return super.readText(target as never, signal)
   }
 
   override async streamText(target: FsTargetLike, signal?: AbortSignal): Promise<AsyncIterable<string>> {
-    const legacy = await this.legacyText(target, signal).catch(() => undefined)
+    const legacy = await legacyText((t, s, c) => this.readBytes(t, s, c), target, signal).catch(() => undefined)
     if (legacy !== undefined) {
       return (async function* () { yield legacy })()
     }

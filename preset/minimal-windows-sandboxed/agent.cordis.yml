@@ -52,10 +52,17 @@
   isolate:
     fs: true
   config:
-    # dsh-win32/fs = fs-local plus transparent GBK/UTF-16 READ decoding
-    # (legacy files edit back as UTF-8; documented in the dsh-win32 README).
+    # dsh-win32/fs-confined = fs-sandbox plus transparent GBK/UTF-16 READ
+    # decoding (legacy files edit back as UTF-8; documented in the README).
+    #
+    # Stock minimal mounts the BARE fs-local here, which reports no
+    # sandboxMode, and tool-str-replace-editor reads exactly that to decide
+    # whether to build a MutationPolicy. With the bare backend there is none,
+    # so the editor can rewrite any absolute path on the box while the badge
+    # still says Read Only (deepseek-harness#2066). This preset is the
+    # sandboxed one, so it gets the confining backend and a real write fence.
     - id: fs-win32
-      name: 'dsh-win32/fs'
+      name: 'dsh-win32/fs-confined'
       config:
         cwd: !!js process.env.DSH_CWD ?? process.cwd()
 
