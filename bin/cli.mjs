@@ -259,10 +259,15 @@ function ensureBundle() {
     }
   }
   if (wired === undefined) console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
+  // The profile carries a pnpm minimum-release-age gate, and its exclude list
+  // only ever names the version current at wiring time, so a release published
+  // today is invisible to an upgrade and pnpm answers "Already up to date"
+  // (#17). We scope the override to this one install rather than editing the
+  // profile's policy file, which would weaken it permanently, and we say so
+  // rather than overriding a supply-chain protection silently.
+  info(`installing the exact version you invoked (${SELF_VERSION}) and overriding pnpm's minimum-release-age for this install only`)
+  info('the profile\'s own policy file is left untouched')
   // -w: the profile dir is a pnpm workspace root; pnpm 10+ refuses a bare add there.
-  // minimumReleaseAge=0: the profile carries a supply-chain age gate that only
-  // excludes the version current at wiring time, so a release published today
-  // is invisible to an upgrade and pnpm answers "Already up to date" (#17).
   runDshPlugin(['--profile', 'web', 'add', '-w', `dsh-win32@${SELF_VERSION}`, '--config.minimumReleaseAge=0'])
 }
 
