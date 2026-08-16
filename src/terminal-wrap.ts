@@ -72,6 +72,44 @@ export function toPortableEval(data: string): string {
   return `${data.slice(0, at)}; eval $' ${data.slice(at + WRAPPED_EVAL.length)}`
 }
 
+/** Marks an IPty whose kill has already been made signal-tolerant. */
+const KILL_PATCHED = Symbol.for('dsh-win32.killPatched')
+
+interface KillableTerminal {
+  kill?: (signal?: string) => void
+  [KILL_PATCHED]?: boolean
+}
+
+/**
+ * Make the pty's `kill` tolerate a signal argument.
+ *
+ * node-pty throws `Signals not supported on windows.` when `kill` is given one,
+ * and `stopShell` calls it exactly that way:
+ *
+ *   try { this.terminal.kill('SIGTERM') } catch { }   // swallowed
+ *   await Promise.race([this.done, delay(this.graceMs)])
+ *   try { this.terminal.kill('SIGKILL') } catch { }   // swallowed
+ *   await Promise.race([this.done, delay(this.graceMs)])
+ *
+ * Both throws are caught as "the exit callback is authoritative", so nothing
+ * ever signals the shell and both grace windows expire in full. Measured here,
+ * that is 6s of a ~10s teardown of an idle terminal with no descendants, after
+ * which `stopShell` throws and the tree-kill fallback below does the actual
+ * work. `kill()` with no argument does terminate the shell, so dropping the
+ * argument restores the intent of both phases.
+ */
+export function patchTerminalKill(handle: unknown): boolean {
+  // `terminal` is internal to the stock handle rather than part of its public
+  // type, so this is a structural reach and reports false if the shape moves.
+  const terminal = (handle as { terminal?: KillableTerminal } | undefined)?.terminal
+  if (terminal === undefined || typeof terminal.kill !== 'function') return false
+  if (terminal[KILL_PATCHED] === true) return true
+  const original = terminal.kill.bind(terminal)
+  terminal.kill = function killIgnoringSignal(): void { original() }
+  terminal[KILL_PATCHED] = true
+  return true
+}
+
 /**
  * Wrap a live terminal handle: keyboard-equivalent signals are injected as
  * input, and a failed terminate falls back to a forced tree kill. Directly
