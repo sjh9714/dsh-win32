@@ -57,9 +57,19 @@ jobs:
             for (const n of ['node','git_bash','powershell','koffi','sandbox_shell']) {
               if (!names.includes(n)) throw new Error('missing vocabulary name ' + n)
             }
-            const skipped = e.checks.filter(c => c.status === 'skip').length
-            if (win && skipped !== 0) throw new Error('win32 should skip nothing, got ' + skipped)
-            if (!win && skipped !== 4) throw new Error('non-win32 should skip 4, got ' + skipped)
+            // Assert WHICH checks skip, not how many, so adding a check does
+            // not break this on an unrelated platform.
+            const skipped = e.checks.filter(c => c.status === 'skip').map(c => c.name).sort()
+            const winOnly = ['git_bash','koffi','powershell','sandbox_shell','write_fence']
+            if (!win && String(skipped) !== String(winOnly)) {
+              throw new Error('non-win32 should skip exactly ' + winOnly + ', got ' + skipped)
+            }
+            // On win32 every platform check applies. write_fence is the one
+            // exception: it has nothing to inspect until the sandboxed preset
+            // is installed, and this job does not install it.
+            if (win && skipped.some(n => n !== 'write_fence')) {
+              throw new Error('win32 should only ever skip write_fence, got ' + skipped)
+            }
             console.log('envelope ok, exit', e.exitCode, JSON.stringify(e.summary))
           "
           if [ "$RUNNER_OS" = "Windows" ]; then
