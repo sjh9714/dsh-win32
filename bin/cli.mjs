@@ -19,6 +19,9 @@ const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
 const PRESET_ID = 'minimal-windows'
 const PRESET_SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'preset', PRESET_ID)
 const REPO = 'https://github.com/sjh9714/dsh-win32'
+const SELF_VERSION = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'),
+).version
 
 const ok = message => console.log(`  ok    ${message}`)
 const warn = message => console.log(`  WARN  ${message}`)
@@ -122,6 +125,12 @@ function collectChecks() {
   if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
   else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it. setup enables it through corepack, or: npm install -g pnpm')
 
+  // Not a vocabulary name, so it carries the vendor prefix the contract asks for.
+  const wiredBundle = bundleVersion()
+  if (wiredBundle === undefined) add('dsh-win32/bundle', 'warn', `not wired into the web profile; run: npx dsh-win32 setup`)
+  else if (wiredBundle === SELF_VERSION) add('dsh-win32/bundle', 'pass', wiredBundle)
+  else add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}; the runtime lives in the bundle, so run: npx dsh-win32 setup`)
+
   const gitBash = WIN ? findGitBash() : undefined
   if (!WIN) {
     for (const name of ['git_bash', 'powershell', 'koffi', 'sandbox_shell']) add(name, 'skip', NOT_WINDOWS)
@@ -192,13 +201,28 @@ function doctor({ json = false } = {}) {
   return { gitBash, exitCode }
 }
 
-function bundleInstalled(profile = 'web') {
+/**
+ * What the profile actually runs, which is not what the CLI is.
+ *
+ * The runtime behaviour lives in the bundle inside the profile, so a machine
+ * can run `npx dsh-win32@latest setup` and stay on an old runtime while every
+ * check reports green (#17). Returns undefined when the bundle is not wired.
+ */
+function bundleVersion(profile = 'web') {
   const manifest = join(DSH_HOME, 'profiles', profile, 'package.json')
-  if (!existsSync(manifest)) return false
+  if (!existsSync(manifest)) return undefined
   try {
-    return (JSON.parse(readFileSync(manifest, 'utf8')).dsh?.profile?.bundles ?? []).includes('dsh-win32')
+    const wired = (JSON.parse(readFileSync(manifest, 'utf8')).dsh?.profile?.bundles ?? []).includes('dsh-win32')
+    if (!wired) return undefined
   } catch {
-    return false
+    return undefined
+  }
+  const installed = join(DSH_HOME, 'profiles', profile, 'node_modules', 'dsh-win32', 'package.json')
+  if (!existsSync(installed)) return 'wired, not installed'
+  try {
+    return JSON.parse(readFileSync(installed, 'utf8')).version
+  } catch {
+    return 'unreadable'
   }
 }
 
@@ -213,9 +237,13 @@ function runDshPlugin(args) {
 }
 
 function ensureBundle() {
-  if (bundleInstalled()) {
-    ok('bundle dsh-win32 already wired into the web profile')
+  const wired = bundleVersion()
+  if (wired === SELF_VERSION) {
+    ok(`bundle dsh-win32@${wired} already wired into the web profile`)
     return
+  }
+  if (wired !== undefined) {
+    console.log(`bundle is dsh-win32@${wired}, this CLI is ${SELF_VERSION}; re-wiring...`)
   }
   if (findPnpm() === undefined) {
     console.log('pnpm not found, enabling it through corepack (ships with node)...')
@@ -226,9 +254,12 @@ function ensureBundle() {
       ok('pnpm enabled through corepack')
     }
   }
-  console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
+  if (wired === undefined) console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
   // -w: the profile dir is a pnpm workspace root; pnpm 10+ refuses a bare add there.
-  runDshPlugin(['--profile', 'web', 'add', '-w', 'dsh-win32'])
+  // minimumReleaseAge=0: the profile carries a supply-chain age gate that only
+  // excludes the version current at wiring time, so a release published today
+  // is invisible to an upgrade and pnpm answers "Already up to date" (#17).
+  runDshPlugin(['--profile', 'web', 'add', '-w', `dsh-win32@${SELF_VERSION}`, '--config.minimumReleaseAge=0'])
 }
 
 function fix() {

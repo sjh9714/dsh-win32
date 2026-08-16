@@ -99,6 +99,17 @@ describe('dsh-doctor/v1 envelope', () => {
     }
   })
 
+  // #17: the runtime lives in the bundle inside the profile, so a machine can
+  // run a new CLI against an old runtime with every check green. The version
+  // has to be visible in the report. Vendor-prefixed because it is not a
+  // dsh-doctor/v1 vocabulary name.
+  it('reports the wired bundle version under a vendor-prefixed name', () => {
+    const { envelope } = runDoctor()
+    const bundle = envelope.checks.find((c: any) => c.name === 'dsh-win32/bundle')
+    expect(bundle).toBeDefined()
+    expect(['pass', 'warn']).toContain(bundle.status)
+  })
+
   // #13: a clean box has node and Git but no pnpm, and the bundle wiring dies
   // on it with a bare "'pnpm' is not recognized". The check is platform-
   // agnostic, so it must report a real status everywhere rather than joining
