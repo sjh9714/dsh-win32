@@ -1,6 +1,6 @@
 # dsh-win32
 
-让 DeepSeek Harness 在 Windows 上成为一等公民。
+**在 Windows 上把 DSH 用起来。极简模式、持久 shell、沙箱，全部可用。**
 
 [English](./README.en.md)
 
@@ -13,39 +13,86 @@
 <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT">
 </p>
 
-![装前装后](./assets/hero.png)
+![沙箱内跑完一整轮真实的修 bug](./assets/shot-persistent-sandboxed.png)
+
+真机截图。沙箱模式（`Workspace Write`）下，Agent 跑测试看到失败、读源码定位、改掉、再跑一次拿到 `all tests passed`。
+
+## 三步装好
+
+```powershell
+npx dsh-win32 setup --sandboxed
+```
+
+需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。装完启动 `npx @deepseek-ai/dsh web`，然后。
+
+1. 左侧 `Workspaces` 那行点文件夹图标，**先加一个工作区**。不加的话输入框是灰的，打不了字
+2. 预设选择器里选 **Minimal (Windows, sandboxed)**
+3. 权限徽章保持 **Workspace Write**
+
+想要 Git Bash 而不是 busybox，`npx dsh-win32 setup` 装另一个预设，选 **Minimal (Windows)**，权限切到 `danger-full-access`。两个预设的区别见下面第 ① 条。
+
+出问题了跑 `npx dsh-win32 doctor`，它会逐项指出已知的坑。
 
 ## 三件别处做不到的事
 
-**① 沙箱内唯一能跑的持久 shell**（v0.4 起）
+**① 沙箱里也能用持久 shell**（v0.4 起）
 
-MSYS / Git Bash 在 `workspace-write` 受限令牌下启动即死，实测签名 `cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022`，用户实机还报告了同族的第二个签名 `CreateFileMapping ... Win32 error 5`。所以其它 Windows 方案都只能要求 `danger-full-access`。
+其它 Windows 方案都只能要求 `danger-full-access`，因为 Git Bash 这类 shell 在沙箱里根本起不来。我们换了一个能在沙箱里活下来的 shell（busybox-w32 ash），所以 `workspace-write` 下也有持久 shell。据我们所知这是目前唯一一个。
 
-busybox-w32 ash 没有 cygheap 初始化，能在受限令牌里活下来。windows-latest CI 上有完整的 send/read 往返实测，且是必跑任务。据我们所知，这是目前唯一能在 DSH 沙箱内运行的 Windows 持久 shell。
-
-```powershell
-npx dsh-win32 setup --sandboxed   # 然后选预设「Minimal (Windows, sandboxed)」
-```
-
-![沙箱内的持久 shell](./assets/shot-persistent-sandboxed.png)
-
-真机截图，不是示意图。沙箱预设在 `Workspace Write` 下跑完了一整轮真实的修 bug，跑测试看到失败、读源码定位到 `sub` 写成了加法、改掉、再跑一次拿到 `all tests passed`。底部计量行和左侧会话列表都是同一帧里的真实数据。
+代价是 ash 不是 bash，没有数组、没有 `[[ ]]`。原因写在下面「为什么会这样」。
 
 **② 极简模式真正可用**
 
-官方 subprocess 运行时在 win32 上起 PTY 之前就抛 `terminal inspection is unsupported on platform win32`，持久 shell 和依赖它的极简模式整个不可用（官方架构笔记里标为待补项）。我们通过官方注入座补上 win32 ProcessInspector（进程树用 CIM，信号用 taskkill），**不改核心一行代码**。取消命令走 ConPTY 惯例的 Ctrl-C 注入，不再把会话打成 transport failure。
+Windows 上选极简模式会直接报错，持久 shell 和依赖它的极简模式整个用不了。我们把官方缺的那块补上了，**不改核心一行代码**。取消命令（Ctrl-C）也修好了，不再把整个会话打断。
 
 ![Windows 上真正可用的极简模式](./assets/shot-persistent-gitbash.png)
 
 `export BUILD=v1` 在一次工具调用里结束，下一次独立的工具调用里 `$BUILD` 还活着，所以提交信息是 `v1`，`git log --oneline` 的输出就是证据。持久性是在真实工作里顺带证明的，不是靠专门造的标记变量。
 
-**③ 前台命令识别**（v0.7 起，社区贡献）
+**③ 命令跑完了 Agent 才知道**（v0.7 起，社区贡献）
 
-Windows 上父进程链回答不了「终端里现在跑着什么」，因为 MSYS 的 fork 模拟会切断链条：跑着 `sleep 20` 的 Git Bash PTY 报告的直接子进程为空，而 ConPTY 控制台进程列表里那个 sleep 清清楚楚。v0.7 用控制台列表做前台解析（~81ms，对比 CIM 全量枚举 ~904ms），恢复了 terminal-bash 判断「shell 回到提示符」还是「子进程打印了继承来的标记」的能力。
+Windows 上没法直接问「终端里现在跑着什么」，所以 Agent 会把还在跑的命令当成已结束。改成从 ConPTY 控制台进程列表解析后修好了，约 81ms。
 
-## 安装
+## 为什么会这样
 
-PowerShell 里一行。
+上面三条的根因。想知道自己撞的是不是这些，或者自己写 preset 会不会踩到，看这里。
+
+### 报错 `terminal inspection is unsupported on platform win32`
+
+**这个报错和 node-pty 无关。** 重装 node-pty、换 Node 版本、装 VS Build Tools 都不会有任何变化，报错一个字都不变。很多人在这上面花了时间。
+
+原因在官方 subprocess 运行时的 `createProcessInspector`。它按平台分派 ProcessInspector 实现，win32 分支直接 throw，而且这次调用发生在 `nodePty.spawn` **之前**。所以 PTY 根本没有机会启动。官方架构笔记里把它标为待补项。
+
+我们通过官方留的注入座补上 win32 实现，进程树用一次 CIM 快照（pid、ppid、CreationDate 三者构成进程身份，防 pid 复用），信号用 taskkill，取消命令按 ConPTY 惯例把 Ctrl-C 作为 PTY 输入写进去。
+
+### 沙箱里 Git Bash 起不来
+
+`workspace-write` 用的是受限令牌。Cygwin / MSYS 运行时启动时要做 cygheap 初始化，涉及令牌操作和共享内存映射，受限令牌不给，进程当场死掉。实测两个同族签名。
+
+```
+cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022
+CreateFileMapping ... Win32 error 5
+```
+
+第二个是用户在自己机器上报告的，显式配了 `shellPath` 仍然复现，排除了路径问题。这是 MSYS 运行时模型和受限令牌的直接冲突，**在插件层无解**。这也解释了为什么现有 Windows 方案清一色要求 `danger-full-access`，不是作者们偷懒。
+
+busybox-w32 的 ash 是纯 Win32 实现，没有 POSIX 模拟层，也就没有那步会被拒的初始化。windows-latest CI 上有完整的 send/read 往返实测，是必跑任务，同一条路径上 MSYS bash 复现已知死法也留在 CI 里。
+
+### 前台命令识别为什么不能靠父进程链
+
+MSYS 的 fork 模拟会切断父子链。实测很直白，Git Bash 的 PTY 里跑 `sleep 20`，查它的直接子进程，是空的。同一时刻查 ConPTY 的控制台进程列表，那个 sleep 清清楚楚在里面。控制台归属是控制台自身的属性，不依赖父子关系维持。
+
+`/proc` 也不行。MSYS 确实模拟 POSIX 作业控制，每个作业有独立 pgid，但 `/proc/<pid>/stat` 第 8 个字段 `tpgid`（tty 的前台组）永远是 -1，Cygwin 不暴露 `tcgetpgrp`。所以 `/proc` 和控制台列表回答的是同一个问题，**没有任何时点查询能分开前台命令和后台作业**。
+
+分开它们的是时间。前台命令会在 shell 拿回终端之前退出，后台作业不会。这块和上面的控制台列表解析都是社区贡献者做的。
+
+### 旧编码文件读不了
+
+官方 fs 对 GBK / UTF-16 文件返回 `FS_NOT_TEXT` 直接拒读，国内老项目里这种文件一大把，Agent 连打开都做不到。两个预设都挂了 `dsh-win32/fs`，读取路径自动嗅探解码。写入保持 UTF-8，所以编辑一个旧编码文件会把它转成 UTF-8，不做往返。
+
+## 其它安装方式
+
+上面那条最短。这里是其它路径。
 
 按生态惯例的一行装法，插件激活时会自动把预设装进 `$DSH_HOME/.agent-presets/`（已存在则不覆盖）。
 
@@ -89,9 +136,9 @@ npx dsh-win32 doctor --json
 
 ## 还有
 
-**旧编码读取。** 官方 fs 对 GBK/UTF-16 文件直接 `FS_NOT_TEXT` 拒读，中文旧项目 Agent 根本打不开。两个预设都挂载了 `dsh-win32/fs`，读取路径自动嗅探解码 GBK/UTF-16；v0.5 起前台 shell 的 collect 输出同样处理。写入保持 UTF-8（编辑旧编码文件会转码，如实写明）。
-
 **黑框修复。** 超时杀进程的 taskkill 补上 `windowsHide`，不再闪控制台窗口。
+
+**前台 shell 输出的旧编码。** v0.5 起 collect 输出和文件读取走同样的嗅探解码。
 
 ## 实证
 

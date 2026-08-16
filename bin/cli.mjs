@@ -372,7 +372,21 @@ async function setup(args) {
   }
 
   console.log('')
-  console.log(`start it with: npx @deepseek-ai/dsh web`)
+  // A preset in the picker is not a working session. Three more things have to
+  // happen and the first one has no in-product guidance at all, so a user who
+  // gets this far still lands on a greyed-out composer with no hint (#14).
+  const sandboxed = args.includes('--sandboxed')
+  console.log('next, in order:')
+  console.log('  1. npx @deepseek-ai/dsh web        (use the EXACT url it prints)')
+  console.log('  2. sidebar > Workspaces > folder icon, and add a workspace')
+  console.log('     until you do, the composer is greyed out and takes no input')
+  if (sandboxed) {
+    console.log('  3. preset picker > "Minimal (Windows, sandboxed)", leave the badge on Workspace Write')
+  } else {
+    console.log('  3. preset picker > "Minimal (Windows)", then switch the badge to danger-full-access')
+    console.log('     (Git Bash cannot run in the sandbox; re-run with --sandboxed for a preset that can)')
+  }
+  console.log('')
   console.log(`${REPO}  (docs, known Windows traps, and where to report what broke)`)
 }
 

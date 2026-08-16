@@ -1,6 +1,6 @@
 # dsh-win32
 
-First-class Windows for DeepSeek Harness.
+**Get DSH working on Windows. Minimal mode, a persistent shell, and the sandbox, all of them.**
 
 [中文](./README.md)
 
@@ -13,19 +13,35 @@ First-class Windows for DeepSeek Harness.
 <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT">
 </p>
 
-![before and after](./assets/hero.png)
+![a whole bug fix, run inside the sandbox](./assets/shot-persistent-sandboxed.png)
+
+A real screenshot. At `Workspace Write`, the agent runs the tests to see them fail, reads the source to find the bug, fixes it, and runs again for `all tests passed`.
+
+## Three steps
+
+```powershell
+npx dsh-win32 setup --sandboxed
+```
+
+Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). Start it with `npx @deepseek-ai/dsh web`, then.
+
+1. On the `Workspaces` row in the sidebar, click the folder icon and **add a workspace first**. Until you do, the composer is greyed out and will not take input
+2. Pick **Minimal (Windows, sandboxed)** in the preset picker
+3. Leave the permission badge on **Workspace Write**
+
+Want Git Bash instead of busybox? `npx dsh-win32 setup` installs the other preset. Pick **Minimal (Windows)** and switch the badge to `danger-full-access`. The difference between the two is the first item below.
+
+Something not working? `npx dsh-win32 doctor` names each known trap.
+
+## What stock DSH cannot do here
 
 | | Stock DSH on Windows | With dsh-win32 |
 |---|---|---|
 | Persistent shell in the sandbox | impossible. MSYS dies under the restricted token | **works, on busybox ash. the only one we know of** |
-| Minimal preset | dead. every persistent-shell spawn throws `terminal inspection is unsupported on platform win32` | **works. real persistent Git Bash, state survives across tool calls** |
-| Foreground command | unresolvable. parent links are severed by MSYS fork emulation | resolved from the ConPTY console list (~81ms) |
+| Minimal preset | dead. every persistent-shell spawn throws on win32 | **works. real persistent Git Bash, state survives across tool calls** |
+| Foreground command | unresolvable from parent links | resolved from the ConPTY console list (~81ms) |
 | Install traps | koffi segfault chain, PS 5.1 crash loop, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
 | Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup` (+ optional desktop shortcut) |
-
-![a persistent shell inside the workspace-write sandbox](./assets/shot-persistent-sandboxed.png)
-
-A real screenshot rather than a diagram. The sandboxed preset runs a whole bug fix at `Workspace Write`, running the tests to see them fail, reading the source to find `sub` written as addition, fixing it, and running again for `all tests passed`. The metrics line at the bottom and the session list on the left are real data from the same frame.
 
 ## Why this exists
 
