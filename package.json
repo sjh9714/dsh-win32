@@ -1,7 +1,7 @@
 {
   "name": "dsh-win32",
-  "version": "0.7.0",
-  "description": "First-class Windows for DeepSeek Harness: real persistent-bash Minimal mode (Git Bash PTY), a doctor for the known install traps, one-command setup | 让 DeepSeek Harness 在 Windows 上成为一等公民",
+  "version": "0.7.1",
+  "description": "DeepSeek Harness 的 Windows 插件：沙箱内唯一能跑的持久 shell、可用的极简模式、前台命令识别、旧编码读取与安装体检 | First-class Windows for DSH",
   "type": "module",
   "license": "MIT",
   "repository": "github:sjh9714/dsh-win32",
@@ -35,7 +35,7 @@
     "bin",
     "preset",
     "cordis.patch.yml",
-    "README.zh.md"
+    "README.en.md"
   ],
   "scripts": {
     "build": "tsc -p .",

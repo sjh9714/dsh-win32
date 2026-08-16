@@ -1,50 +1,75 @@
 # dsh-win32
 
-First-class Windows for DeepSeek Harness.
+让 DeepSeek Harness 在 Windows 上成为一等公民。
 
-[中文](./README.zh.md) · [![ci](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml)
+[English](./README.en.md) · [![ci](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml/badge.svg)](https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml)
 
-![before and after](./assets/hero.png)
+![装前装后](./assets/hero.png)
 
-| | Stock DSH on Windows | With dsh-win32 |
-|---|---|---|
-| Minimal preset | dead. every persistent-shell spawn throws `terminal inspection is unsupported on platform win32` | **works. real persistent Git Bash, state survives across tool calls** |
-| Install traps | koffi segfault chain, PS 5.1 crash loop, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
-| Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup` (+ optional desktop shortcut) |
+## 三件别处做不到的事
 
-## Why this exists
+**① 沙箱内唯一能跑的持久 shell**（v0.4 起）
 
-The community keeps reporting that DeepSeek models do their best work in DSH's Minimal preset. On Windows that preset does not run at all. Its persistent bash needs a PTY, and the stock subprocess runtime resolves a platform process inspector that throws on win32 before node-pty is even reached. Every Windows user has been locked out of the mode the model is best aligned with.
+MSYS / Git Bash 在 `workspace-write` 受限令牌下启动即死，实测签名 `cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022`，用户实机还报告了同族的第二个签名 `CreateFileMapping ... Win32 error 5`。所以其它 Windows 方案都只能要求 `danger-full-access`。
 
-dsh-win32 closes that gap with three pieces.
+busybox-w32 ash 没有 cygheap 初始化，能在受限令牌里活下来。windows-latest CI 上有完整的 send/read 往返实测，且是必跑任务。据我们所知，这是目前唯一能在 DSH 沙箱内运行的 Windows 持久 shell。
 
-1. **A Windows-aware subprocess runtime.** Same stock runtime, plus the missing piece, a win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). Swapped in by bundle patch on win32 only. Other platforms keep the stock row untouched.
-2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction. v0.4 adds `minimal-windows-sandboxed`, a variant on busybox-w32 ash that STAYS inside the `workspace-write` ACL sandbox (`npx dsh-win32 setup --sandboxed`, downloads busybox on consent). Measured on windows-latest CI, the first persistent shell that survives the restricted token.
-3. **Legacy-encoding reads, everywhere they can exist.** Stock DSH refuses GBK/UTF-16 files outright (`FS_NOT_TEXT`) and garbles GBK output of native tools in the foreground shell. Both presets mount a filesystem reader (`dsh-win32/fs`) that sniffs and decodes GBK/UTF-16 on file reads, and since v0.5 the runtime decodes foreground-shell collect output the same way. Writes stay UTF-8, so editing a legacy file converts it. Deliberate and documented. PTY output stays undecodable at the plugin layer (node-pty decodes first), and shipped shells default to UTF-8 so the presets are unaffected.
-4. **A doctor.** Diagnoses the traps the community found the hard way. broken koffi 3.1.3/3.1.4 prebuilts (install failures, folder-picker and session-save crashes), missing PowerShell 7 (the 5.1 fallback crash-loops with 0xC0000142 inside the sandbox), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
+```powershell
+npx dsh-win32 setup --sandboxed   # 然后选预设「Minimal (Windows, sandboxed)」
+```
 
-## Install
+**② 极简模式真正可用**
 
-One line, in PowerShell.
+官方 subprocess 运行时在 win32 上起 PTY 之前就抛 `terminal inspection is unsupported on platform win32`，持久 shell 和依赖它的极简模式整个不可用（官方架构笔记里标为待补项）。我们通过官方注入座补上 win32 ProcessInspector（进程树用 CIM，信号用 taskkill），**不改核心一行代码**。取消命令走 ConPTY 惯例的 Ctrl-C 注入，不再把会话打成 transport failure。
+
+**③ 前台命令识别**（v0.7 起，社区贡献）
+
+Windows 上父进程链回答不了「终端里现在跑着什么」，因为 MSYS 的 fork 模拟会切断链条：跑着 `sleep 20` 的 Git Bash PTY 报告的直接子进程为空，而 ConPTY 控制台进程列表里那个 sleep 清清楚楚。v0.7 用控制台列表做前台解析（~81ms，对比 CIM 全量枚举 ~904ms），恢复了 terminal-bash 判断「shell 回到提示符」还是「子进程打印了继承来的标记」的能力。
+
+## 安装
+
+PowerShell 里一行。
 
 ```powershell
 irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
 ```
 
-That wires the runtime bundle into your web profile, installs the preset, creates a desktop shortcut, and prints a health report. Prefer npx? Same thing.
+它会把运行时 bundle 接入 web profile、安装预设、建桌面快捷方式并输出体检报告。想用 npx 也一样。
 
 ```sh
-npx dsh-win32 setup              # bundle + preset + health report
-npx dsh-win32 setup --shortcut   # same, plus the desktop shortcut
+npx dsh-win32 setup              # bundle + 预设 + 体检
+npx dsh-win32 setup --sandboxed  # 额外装沙箱内可用的 busybox 变体
+npx dsh-win32 setup --shortcut   # 额外建桌面快捷方式
 ```
 
-The preset appears in the picker immediately. Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`).
+预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
 
-Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
+已经出问题了？`npx dsh-win32 doctor` 逐项指出已知的坑（koffi 3.1.3/3.1.4 损坏预编译导致的安装失败与选择器崩溃、缺 PowerShell 7 时 5.1 在沙箱里的 0xC0000142、localhost 与 127.0.0.1 的 403、System32 里的 WSL 假 bash），`npx dsh-win32 fix` 自动修复能安全修的部分。
 
-## Writing your own preset on Windows
+## 还有
 
-If your preset mounts `@deepseek-ai/dsh-terminal-bash` without an explicit `shellPath`, the default `/bin/bash` resolves to `C:\Windows\System32\bash.exe` on Windows, the WSL launcher, and the PTY exits at startup. Point it at the real shell instead.
+**旧编码读取。** 官方 fs 对 GBK/UTF-16 文件直接 `FS_NOT_TEXT` 拒读，中文旧项目 Agent 根本打不开。两个预设都挂载了 `dsh-win32/fs`，读取路径自动嗅探解码 GBK/UTF-16；v0.5 起前台 shell 的 collect 输出同样处理。写入保持 UTF-8（编辑旧编码文件会转码，如实写明）。
+
+**黑框修复。** 超时杀进程的 taskkill 补上 `windowsHide`，不再闪控制台窗口。
+
+## 实证
+
+- windows-latest CI 每次推送都跑：持久 Git Bash PTY 状态跨调用保留（先 `STATE=x`，再 `echo $STATE`）、中断 `sleep 60` 得 exit 130、前台解析三态、GBK 子进程输出解码。
+- 受限令牌（workspace-write 沙箱）内 busybox ash 完整往返，MSYS bash 在同一路径复现已知死法。一条命令可复现，`SANDBOX_MODE=workspace-write node scripts/sandbox-smoke.mjs`。
+- 真实模型会话：两次 bash 工具调用之间变量和 cwd 都活着。
+- 第三方在真实 Windows 机器上独立复现过测试套件（见 deepseek-harness#1889）。
+
+## 诚实的限制
+
+- Git Bash 预设需要 `danger-full-access`（MSYS 受限令牌问题如上，已实测）。沙箱内请用 busybox 变体，代价是 ash 而非 bash（没有数组、没有 `[[ ]]`）。
+- 旧编码文件的编辑会保存为 UTF-8，不做往返。
+- PTY 输出的旧代码页在插件层无法解码：node-pty 在任何 DSH 代码运行之前就按 UTF-8 解码，且在 Windows 上拒绝编码覆盖。随附 shell 默认 UTF-8，所以预设不受影响。
+- `isStdinWaiting` 恒为 false。Windows 没有可靠的「控制台读阻塞」探测，假装有会把还在跑的命令判成结束。
+- 基于 DSH `0.1.0-rc.6` 开发，rc 更新会快速跟进。
+
+## 自己写 preset 的注意事项
+
+如果你的 preset 挂载 `@deepseek-ai/dsh-terminal-bash` 却不显式配 `shellPath`，默认的 `/bin/bash` 在 Windows 上会命中 `C:\Windows\System32\bash.exe`（WSL 启动器），PTY 启动即退。请显式指向真正的 shell。
 
 ```yaml
 - id: terminal-bash
@@ -54,24 +79,16 @@ If your preset mounts `@deepseek-ai/dsh-terminal-bash` without an explicit `shel
     shellArgs: ['--noprofile', '--norc', '-i']
 ```
 
-Use `usr/bin/bash.exe` rather than `bin/bash.exe`. The latter is a 47KB wrapper that respawns the former, so the PTY pid ends up pointing at the wrapper instead of the shell. Reported by a user in #6.
+用 `usr/bin/bash.exe` 而不是 `bin/bash.exe`。后者是 47KB 的 wrapper，会再拉起前者，PTY 的 pid 会落在 wrapper 上而不是 shell 上。来自 #6 用户报告。
 
-## China network note · 中国网络提示
+## 中国网络提示
 
 `irm raw.githubusercontent.com...` 和 busybox 的 `frippery.org` 在部分网络环境下可能无法直连。替代路径：安装用 `npx dsh-win32 setup`（npm 源可换 npmmirror），busybox 手动下载后用 `npx dsh-win32 setup --sandboxed --busybox <路径>` 指定。
 
-## Receipts
+## 贡献
 
-- CI runs on real `windows-latest`. It builds the runtime, spawns a persistent Git Bash PTY through it, and proves state survives across writes (`STATE=x` in one call, `echo $STATE` in the next). The same job fails on the stock runtime by construction of the inspector gap.
-- Unit tests cover the inspector's tree ordering, pid-recycle cycles, identity matching, and signal mapping.
-
-## Honest limitations (v0.5)
-
-- Interrupting a running command works through Ctrl-C injection (SIGINT/SIGTSTP as PTY input, the ConPTY convention). SIGTERM/SIGKILL against a foreground process resolve the command through the ConPTY console list and tree-kill it. What has no win32 answer is stdin-wait probing, which stays `false`, so the harness settles a finished command on the prompt marker rather than on an exact stdin probe. Since v0.5 a failed terminal teardown falls back to `taskkill /T /F` (directly spawned console apps can survive a ConPTY kill).
-- MSYS bash still dies under the `workspace-write` ACL restricted token (measured signature `cygheap_user::init: NtSetInformationToken (TokenDefaultDacl), 0xC0000022`), so the Git Bash preset needs `danger-full-access`. The busybox variant (`minimal-windows-sandboxed`) is the sandbox-safe answer. The trade-off is ash instead of bash (no arrays, no `[[ ]]`).
-- PTY output of legacy-codepage native tools cannot be re-decoded at the plugin layer. node-pty decodes as UTF-8 before any DSH code runs and refuses an encoding override on Windows. Git Bash and busybox default to UTF-8, so the shipped presets are unaffected.
-- Developed against DSH `0.1.0-rc.6`. DSH is a developer preview with breaking changes announced. version pinned, fast-patch policy on every rc bump.
+欢迎实机报告（[#3](../../issues/3) 收集不同 Windows 环境的结果）、issue 和 PR。v0.7 的前台解析就来自社区贡献。
 
 ## License
 
-MIT. The preset composition mirrors the official Minimal preset (MIT) with credit. Trap inventory distilled from community reports in the DSH discussions.
+MIT。预设组合复刻自官方极简模式（MIT）并注明出处。踩坑清单提炼自 DSH 官方讨论区的社区报告。
