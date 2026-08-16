@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "DeepSeek Harness 的 Windows 插件：沙箱内唯一能跑的持久 shell、可用的极简模式、前台命令识别、旧编码读取与安装体检 | First-class Windows for DSH",
   "type": "module",
   "license": "MIT",
