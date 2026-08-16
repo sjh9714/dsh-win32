@@ -25,6 +25,13 @@ export interface WindowsInspectorInternals {
   exec(file: string, args: string[]): string
   /** Zero-signal liveness probe; throws when the pid does not exist. */
   kill(pid: number, signal: 0): void
+  /**
+   * Force-terminate one process. Windows has no signals, so this is
+   * TerminateProcess and matches `taskkill /F` in effect, at ~0.2ms against
+   * ~1300ms for spawning taskkill. It cannot reach a tree, so the `/T` paths
+   * still shell out.
+   */
+  terminate(pid: number): void
   now(): number
   /**
    * Process list of the console `shellPid` owns, plus the pid of the helper
@@ -40,6 +47,7 @@ const DEFAULT_INTERNALS: WindowsInspectorInternals = {
     stdio: ['ignore', 'pipe', 'pipe'],
   }),
   kill: (pid, signal) => { process.kill(pid, signal) },
+  terminate: pid => { process.kill(pid) },
   now: () => Date.now(),
   consoleProcessList: shellPid => queryConsoleProcessList(shellPid),
 }
@@ -151,7 +159,27 @@ export class WindowsProcessInspector {
       ordered.push({ pid: row.pid, started: row.started })
     }
     visit(root, new Set())
-    return ordered
+    // Parent links alone find nothing below an MSYS shell, because its fork
+    // emulation execs through an intermediate that then exits (see
+    // console-list.ts). `descendants()` was therefore empty for the whole life
+    // of every Git Bash terminal, which made the SIGTERM/SIGKILL sweep in
+    // `stopDescendants` a no-op and let a backgrounded job outlive its terminal
+    // (#24). Console attachment survives the fork emulation, and for a ConPTY
+    // console every attachment belongs to this terminal, so it is the same
+    // mapping `foregroundPgid` already relies on. Root stays last: the runtime
+    // reads it back for the terminal's own identity.
+    const seen = new Set(ordered.map(member => member.pid))
+    const attached = this.internals.consoleProcessList(rootPid)
+    if (attached === undefined) return ordered
+    const extra: ProcessIdentity[] = []
+    for (const pid of attached.pids) {
+      if (pid === attached.self || seen.has(pid)) continue
+      const row = rows.find(candidate => candidate.pid === pid)
+      // No row means it exited between the two reads, so there is nothing to
+      // signal and no identity to carry.
+      if (row !== undefined) extra.push({ pid: row.pid, started: row.started })
+    }
+    return extra.length === 0 ? ordered : [...extra, ...ordered]
   }
 
   /** Windows has no POSIX sessions. */
@@ -276,14 +304,65 @@ export class WindowsProcessInspector {
     return false
   }
 
-  signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void {
-    const args = signal === 'SIGKILL'
-      ? ['/PID', String(identity.pid), '/F']
-      : ['/PID', String(identity.pid)]
+  /**
+   * Run a taskkill, escalating to `/F` when the graceful form is refused and the
+   * target is still there (#24).
+   *
+   * Without `/F`, taskkill asks a window to close. A console process has none,
+   * so the call fails with exit 128 and the process keeps running. Every MSYS
+   * command is a console process, which made `SIGTERM` a no-op that the catch
+   * below then read as "already gone".
+   *
+   * The liveness re-check is what keeps the graceful attempt meaningful: a
+   * target that exited on its own during the attempt is never force-killed, and
+   * only one that refused is. Nothing graceful is being given up, because the
+   * graceful form cannot work here at all; the choice is a forced kill or no
+   * kill.
+   */
+  private taskkill(args: string[], pid: number): void {
     try {
       this.internals.exec('taskkill', args)
+      return
     } catch {
-      // Already-exited targets are a success for a kill sweep.
+      // Exit 128 is "could not terminate", not "already exited". Tell them apart
+      // by asking whether the pid is still there.
+    }
+    if (args.includes('/F')) return
+    try {
+      this.internals.kill(pid, 0)
+    } catch {
+      return // Gone on its own, which is the success the old catch assumed.
+    }
+    // A `/T` target needs taskkill again for the tree; a single pid does not.
+    if (!args.includes('/T')) {
+      this.forceTerminate(pid)
+      return
+    }
+    try {
+      this.internals.exec('taskkill', [...args, '/F'])
+    } catch {
+      // Nothing further to try; a survivor is reported by the caller's own sweep.
+    }
+  }
+
+  signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void {
+    // No tree to walk for a single pid, so the forceful form is TerminateProcess
+    // rather than a taskkill spawn. Teardown signals every member twice, and
+    // spawning taskkill costs ~1300ms on a busy box even for a pid that does not
+    // exist, so this is most of what a sweep used to pay.
+    if (signal === 'SIGKILL') {
+      this.forceTerminate(identity.pid)
+      return
+    }
+    this.taskkill(['/PID', String(identity.pid)], identity.pid)
+  }
+
+  /** TerminateProcess, treating an already-exited target as the success it is. */
+  private forceTerminate(pid: number): void {
+    try {
+      this.internals.terminate(pid)
+    } catch {
+      // Gone before we got there.
     }
   }
 
@@ -294,10 +373,36 @@ export class WindowsProcessInspector {
    */
   signalGroup(pgid: number, signal: { toString(): string }): void {
     const force = String(signal) === 'SIGKILL' ? ['/F'] : []
-    try {
-      this.internals.exec('taskkill', ['/PID', String(pgid), '/T', ...force])
-    } catch {
-      // Same as signalProcess: absence is success.
+    for (const target of this.groupMembers(pgid)) {
+      this.taskkill(['/PID', String(target), '/T', ...force], target)
     }
+  }
+
+  /**
+   * Every stage of the job `pgid` was resolved from, or just `pgid` itself.
+   *
+   * A pipeline attaches each stage to the console and `foregroundPgid` has to
+   * collapse them onto one pid, so `/T` on that pid reaches its own tree and
+   * leaves the siblings running until the pipe breaks (#11). The set is resolved
+   * again here rather than carried over from the earlier call, so a job that
+   * changed in between yields a stale-but-fresh read instead of a stale captured
+   * one. The race is real and accepted: if the terminal moved on, `pgid` is no
+   * longer among the live candidates and only it is signalled, which is exactly
+   * the old behaviour.
+   */
+  private groupMembers(pgid: number): number[] {
+    for (const [shellPid, state] of this.terminals) {
+      if (state.reported !== pgid) continue
+      const list = this.internals.consoleProcessList(shellPid)
+      if (list === undefined) break
+      const live = list.pids.filter(
+        pid => pid !== shellPid && pid !== list.self && !state.resting.has(pid),
+      )
+      // Background jobs are excluded by `resting`, so this cannot widen into
+      // work the user did not ask to cancel.
+      if (live.includes(pgid)) return live
+      break
+    }
+    return [pgid]
   }
 }

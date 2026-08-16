@@ -21,6 +21,7 @@ function fakeInspector(lines: string[], execLog: string[][] = [], options: FakeO
     kill(pid) {
       if ((options.deadPids ?? []).includes(pid)) throw new Error('ESRCH')
     },
+    terminate(pid) { execLog.push(['terminate', String(pid)]) },
     now: () => (clock.t += 300),
     consoleProcessList(shellPid) {
       options.consoleLog?.push(shellPid)
@@ -116,6 +117,76 @@ describe('WindowsProcessInspector', () => {
     })
   })
 
+
+  describe('descendants and SIGTERM on win32 (#24)', () => {
+    function inspectorWith(
+      console: ConsoleProcessList | undefined,
+      execLog: string[][] = [],
+      deadPids: number[] = [],
+    ) {
+      return new WindowsProcessInspector({
+        exec(file, args) {
+          execLog.push([file, ...args])
+          if (file !== 'taskkill') return SNAPSHOT.join('\r\n')
+          // Without /F, taskkill asks a window to close. Console processes have
+          // none, so the real thing exits 128 and leaves the target running.
+          if (!args.includes('/F')) throw new Error('exit 128: could not be terminated')
+          return ''
+        },
+        kill(pid) { if (deadPids.includes(pid)) throw new Error('ESRCH') },
+        terminate(pid) { execLog.push(['terminate', String(pid)]) },
+        now: () => 0,
+        consoleProcessList: () => console,
+      })
+    }
+
+    it('adds console attachments the parent walk cannot reach', () => {
+      // MSYS severs the chain, so 400 has no path to root 100 through ppid.
+      const tree = inspectorWith({ pids: [100, 400, 9001], self: 9001 }).processTree(100)
+      expect(tree.map(m => m.pid)).toEqual([400, 300, 310, 200, 100])
+      expect(tree.at(-1)).toEqual({ pid: 100, started: '111' })
+    })
+
+    it('never double-counts a pid the parent walk already found', () => {
+      const tree = inspectorWith({ pids: [100, 200, 300, 9001], self: 9001 }).processTree(100)
+      expect(tree.map(m => m.pid)).toEqual([300, 310, 200, 100])
+    })
+
+    it('skips the helper and anything gone from the snapshot', () => {
+      const tree = inspectorWith({ pids: [100, 9001, 55555], self: 9001 }).processTree(100)
+      expect(tree.map(m => m.pid)).toEqual([300, 310, 200, 100])
+    })
+
+    it('keeps the stock tree when the console cannot be read', () => {
+      const tree = inspectorWith(undefined).processTree(100)
+      expect(tree.map(m => m.pid)).toEqual([300, 310, 200, 100])
+    })
+
+    it('escalates SIGTERM to /F when the graceful form is refused', () => {
+      const log: string[][] = []
+      inspectorWith(undefined, log).signalProcess({ pid: 42, started: '1' }, 'SIGTERM')
+      expect(log).toEqual([['taskkill', '/PID', '42'], ['terminate', '42']])
+    })
+
+    it('does not force-kill a target that exited during the graceful attempt', () => {
+      const log: string[][] = []
+      inspectorWith(undefined, log, [42]).signalProcess({ pid: 42, started: '1' }, 'SIGTERM')
+      expect(log).toEqual([['taskkill', '/PID', '42']])
+    })
+
+    it('escalates the group form too, which is what a pipeline needs', () => {
+      const log: string[][] = []
+      inspectorWith(undefined, log).signalGroup(42, 'SIGTERM')
+      expect(log).toEqual([['taskkill', '/PID', '42', '/T'], ['taskkill', '/PID', '42', '/T', '/F']])
+    })
+
+    it('uses TerminateProcess for SIGKILL instead of spawning taskkill', () => {
+      const log: string[][] = []
+      inspectorWith(undefined, log).signalProcess({ pid: 42, started: '1' }, 'SIGKILL')
+      expect(log).toEqual([['terminate', '42']])
+    })
+  })
+
   describe('background jobs stay attached, so foreground is resolved over time (#11)', () => {
     /** Drive the inspector through a scripted sequence of console readings. */
     function sequence(readings: number[][]) {
@@ -123,6 +194,7 @@ describe('WindowsProcessInspector', () => {
       const inspector = new WindowsProcessInspector({
         exec: () => SNAPSHOT.join('\r\n'),
         kill: () => {},
+        terminate: () => {},
         now: () => 0,
         consoleProcessList: () => ({ pids: [...readings[Math.min(index, readings.length - 1)]!, 100], self: 9001 }),
       })
@@ -194,6 +266,7 @@ describe('WindowsProcessInspector', () => {
       const inspector = new WindowsProcessInspector({
         exec: () => SNAPSHOT.join('\r\n'),
         kill: () => {},
+        terminate: () => {},
         now: () => 0,
         consoleProcessList: () => list,
       })
@@ -206,13 +279,15 @@ describe('WindowsProcessInspector', () => {
     })
   })
 
-  it('signals through taskkill, forcing only SIGKILL', () => {
+  it('asks taskkill for the graceful form and TerminateProcess for the forceful one', () => {
+    // A single pid has no tree to walk, so the forceful path does not pay the
+    // ~1300ms taskkill spawn (#24). The graceful form has no native equivalent.
     const log: string[][] = []
     const inspector = fakeInspector([], log)
     inspector.signalProcess({ pid: 42, started: '1' }, 'SIGTERM')
     inspector.signalProcess({ pid: 42, started: '1' }, 'SIGKILL')
     expect(log).toContainEqual(['taskkill', '/PID', '42'])
-    expect(log).toContainEqual(['taskkill', '/PID', '42', '/F'])
+    expect(log).toContainEqual(['terminate', '42'])
   })
 
   it('caches the snapshot within the TTL (one exec per tick, #8)', () => {
@@ -221,7 +296,9 @@ describe('WindowsProcessInspector', () => {
     const inspector = new WindowsProcessInspector({
       exec(file, args) { log.push([file, ...args]); return SNAPSHOT.join('\r\n') },
       kill() {},
+      terminate() {},
       now: () => clock.t,
+      consoleProcessList: () => undefined,
     })
     inspector.isAlive({ pid: 200, started: '222' })
     inspector.isAlive({ pid: 300, started: '333' })
@@ -241,6 +318,7 @@ describe('WindowsProcessInspector', () => {
     const inspector = new WindowsProcessInspector({
       exec(file, args) { log.push([file, ...args]); clock += 1300; return SNAPSHOT.join('\r\n') },
       kill() {},
+      terminate() {},
       now: () => clock,
       consoleProcessList: () => undefined,
     })
@@ -265,6 +343,7 @@ describe('WindowsProcessInspector', () => {
     const inspector = new WindowsProcessInspector({
       exec() { throw new Error('not found') },
       kill() {},
+      terminate() {},
       now: () => Date.now(),
     })
     expect(() => inspector.signalProcess({ pid: 1, started: '1' }, 'SIGKILL')).not.toThrow()
