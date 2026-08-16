@@ -5,13 +5,15 @@
  * and throws on win32, which is why the persistent shell (and with it the
  * Minimal preset) is dead on Windows. This inspector implements the same
  * contract with Windows facilities: process trees and identity via CIM
- * (Win32_Process), signalling via taskkill. POSIX-only concepts (foreground
- * process groups, sessions, stdin-wait probing) degrade gracefully: the
- * harness then reports no foreground process, which only disables foreground
- * inspection niceties, not the shell itself.
+ * (Win32_Process), signalling via taskkill, foreground resolution via the
+ * ConPTY console process list. Sessions and stdin-wait probing have no win32
+ * equivalent and degrade honestly (empty and false), which costs the harness
+ * only the exact-probe settle path, not the shell itself.
  */
 
 import { execFileSync } from 'node:child_process'
+import { queryConsoleProcessList } from './console-list.ts'
+import type { ConsoleProcessList } from './console-list.ts'
 
 export interface ProcessIdentity {
   pid: number
@@ -24,6 +26,11 @@ export interface WindowsInspectorInternals {
   /** Zero-signal liveness probe; throws when the pid does not exist. */
   kill(pid: number, signal: 0): void
   now(): number
+  /**
+   * Process list of the console `shellPid` owns, plus the pid of the helper
+   * that read it. Undefined when the query is unavailable.
+   */
+  consoleProcessList(shellPid: number): ConsoleProcessList | undefined
 }
 
 const DEFAULT_INTERNALS: WindowsInspectorInternals = {
@@ -34,6 +41,7 @@ const DEFAULT_INTERNALS: WindowsInspectorInternals = {
   }),
   kill: (pid, signal) => { process.kill(pid, signal) },
   now: () => Date.now(),
+  consoleProcessList: shellPid => queryConsoleProcessList(shellPid),
 }
 
 /** One CIM enumeration costs ~900ms on a busy box (#8); terminate polls every
@@ -47,6 +55,15 @@ const LIST_COMMAND = '$ErrorActionPreference="Stop"; Get-CimInstance Win32_Proce
 
 interface ProcessRow extends ProcessIdentity {
   ppid: number
+}
+
+/** FILETIME ticks exceed Number.MAX_SAFE_INTEGER, so compare them as BigInt. */
+function startedAfter(a: string, b: string): boolean {
+  try {
+    return BigInt(a) > BigInt(b)
+  } catch {
+    return a > b
+  }
 }
 
 export class WindowsProcessInspector {
@@ -118,11 +135,48 @@ export class WindowsProcessInspector {
     return this.snapshot().some(row => row.pid === identity.pid && row.started === identity.started)
   }
 
-  /** No foreground process-group concept on Windows; report none. */
-  foregroundPgid(_shellPid: number): number | undefined {
-    return undefined
+  /**
+   * The command currently running in the terminal, or the shell itself when it
+   * is idle. Undefined only when the console cannot be read at all, which keeps
+   * the previous degradation as the fallback rather than inventing a pid.
+   *
+   * Console attachment, not parent links, is the win32 analogue of a foreground
+   * process group; see console-list.ts for the MSYS fork-emulation measurement
+   * that rules the parent walk out. Returning the shell pid when nothing else
+   * is attached is the part terminal-bash actually depends on: it is what
+   * distinguishes "the shell is back at its prompt" from "a child printed the
+   * PROMPT_COMMAND marker it inherited" (#7).
+   */
+  foregroundPgid(shellPid: number): number | undefined {
+    const list = this.internals.consoleProcessList(shellPid)
+    if (list === undefined) return undefined
+    const candidates = list.pids.filter(pid => pid !== shellPid && pid !== list.self)
+    if (candidates.length === 0) return shellPid
+    if (candidates.length === 1) return candidates[0]
+    // A pipeline attaches every stage to the console, so there is no single
+    // correct answer when collapsing a group onto one pid. The most recently
+    // started attachment is the closest stand-in for "what is running now".
+    return this.newestOf(candidates) ?? candidates[0]
   }
 
+  /** Most recently started of `pids`, by start identity. Undefined if none are known. */
+  private newestOf(pids: number[]): number | undefined {
+    const rows = this.snapshot()
+    let newest: ProcessRow | undefined
+    for (const pid of pids) {
+      const row = rows.find(candidate => candidate.pid === pid)
+      if (row === undefined) continue
+      if (newest === undefined || startedAfter(row.started, newest.started)) newest = row
+    }
+    return newest?.pid
+  }
+
+  /**
+   * Windows exposes no reliable "this process is blocked on a console read"
+   * probe. Reporting false keeps terminal-bash's exact-probe settle path
+   * unreachable, which is the safe direction: claiming a wait that is not
+   * happening would settle a still-running command.
+   */
   isStdinWaiting(_pgid: number): boolean {
     return false
   }
@@ -138,7 +192,11 @@ export class WindowsProcessInspector {
     }
   }
 
-  /** Unreachable in practice (foregroundPgid is always undefined); tree-kill defensively. */
+  /**
+   * Reachable since foregroundPgid resolves: this is how SIGTERM/SIGKILL against
+   * a foreground command land. `/T` covers the command's own descendants, which
+   * is the closest Windows has to signalling a process group.
+   */
   signalGroup(pgid: number, signal: { toString(): string }): void {
     const force = String(signal) === 'SIGKILL' ? ['/F'] : []
     try {
