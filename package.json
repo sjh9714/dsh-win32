@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "在 Windows 上把 DSH 用起来。一行装好极简模式的持久 shell，沙箱内也能用 | Get DSH working on Windows: persistent shell for Minimal mode, sandbox included",
   "type": "module",
   "license": "MIT",

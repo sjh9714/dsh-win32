@@ -6,7 +6,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -463,8 +463,29 @@ async function main([command, ...rest]) {
   }
 }
 
-// Only dispatch when run as the CLI. The test suite imports this module for
-// its exports and must not trigger a command as a side effect.
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this process running the CLI, rather than importing it for its exports.
+ *
+ * Both sides go through realpath, and the reason is that `npx dsh-win32
+ * doctor` printed NOTHING and exited 0 on macOS and Linux until this was
+ * fixed. On POSIX, npm installs a bin as a SYMLINK in `node_modules/.bin`, so
+ * `process.argv[1]` is the symlink while `import.meta.url` is the real file.
+ * `resolve()` normalizes a path but does not follow symlinks, the comparison
+ * was false, and `main()` simply never ran. Windows was unaffected because npm
+ * writes a `.cmd` shim there that invokes the real path, which is why a
+ * Windows-facing tool shipped this for thirteen releases without a report.
+ * @returns true when this module is the entry point.
+ */
+function runningAsCli() {
+  const entry = process.argv[1]
+  if (entry === undefined) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (runningAsCli()) {
   await main(process.argv.slice(2))
 }
