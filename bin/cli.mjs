@@ -362,6 +362,11 @@ function createShortcut() {
     '$lnk = $shell.CreateShortcut((Join-Path $desktop "DeepSeek Harness.lnk"))',
     '$lnk.TargetPath = "cmd.exe"',
     '$lnk.Arguments = "/c npx @deepseek-ai/dsh web"',
+    // Without this the shortcut inherits whatever cwd Explorer hands it, which
+    // can be System32. dsh resolves the profile from DSH_HOME rather than cwd,
+    // so this is about where a relative path in the session lands, not startup.
+    '$lnk.WorkingDirectory = [Environment]::GetFolderPath("UserProfile")',
+    '$lnk.Description = "Start DeepSeek Harness (opens a console, then a browser tab)"',
     '$lnk.Save()',
   ].join('; ')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true })
@@ -402,13 +407,23 @@ async function setup(args) {
     console.log('this variant stays inside the workspace-write sandbox (busybox ash, measured on CI)')
   }
 
-  if (args.includes('--shortcut')) {
-    if (!WIN) {
-      console.error('setup: --shortcut is Windows-only')
-      process.exit(1)
+  // On by default because the double-click is the point. `install.ps1` has
+  // always passed --shortcut, so the scripted path got one and the far more
+  // common `npx dsh-win32 setup` did not, which is two entry points with
+  // different outcomes for no reason. --shortcut is still accepted so the
+  // installer and anyone's notes keep working.
+  if (WIN && !args.includes('--no-shortcut')) {
+    try {
+      createShortcut()
+      console.log('created desktop shortcut "DeepSeek Harness" (skip it with --no-shortcut)')
+    } catch {
+      // A shortcut is a convenience, not part of a working install. Saying so
+      // beats failing a setup that otherwise succeeded.
+      warn('could not create the desktop shortcut; everything else is installed. Start with: npx @deepseek-ai/dsh web')
     }
-    createShortcut()
-    console.log('created desktop shortcut "DeepSeek Harness"')
+  } else if (!WIN && args.includes('--shortcut')) {
+    console.error('setup: --shortcut is Windows-only')
+    process.exit(1)
   }
 
   console.log('')
@@ -417,7 +432,12 @@ async function setup(args) {
   // gets this far still lands on a greyed-out composer with no hint (#14).
   const sandboxed = args.includes('--sandboxed')
   console.log('next, in order:')
-  console.log('  1. npx @deepseek-ai/dsh web        (use the EXACT url it prints)')
+  if (WIN && !args.includes('--no-shortcut')) {
+    console.log('  1. double-click "DeepSeek Harness" on your desktop  (or: npx @deepseek-ai/dsh web)')
+    console.log('     it opens a console, then use the EXACT url that console prints')
+  } else {
+    console.log('  1. npx @deepseek-ai/dsh web        (use the EXACT url it prints)')
+  }
   console.log('  2. sidebar > Workspaces > folder icon, and add a workspace')
   console.log('     until you do, the composer is greyed out and takes no input')
   if (sandboxed) {
@@ -438,7 +458,7 @@ async function main([command, ...rest]) {
     // its report and decides for itself whether a finding is fatal.
     process.exitCode = doctor({ json: rest.includes('--json') }).exitCode
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json]|setup|fix] [--bash <path>] [--shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json]|setup|fix] [--bash <path>] [--no-shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
     process.exit(1)
   }
 }

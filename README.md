@@ -22,7 +22,11 @@
 npx dsh-win32 setup --sandboxed
 ```
 
-需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。装完启动 `npx @deepseek-ai/dsh web`，然后。
+需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
+
+装完桌面上会多一个 **「DeepSeek Harness」** 快捷方式，**双击就能起**，不用每次去翻命令（不想要的话加 `--no-shortcut`）。它会开一个控制台窗口，用那个窗口打印的**那一条**网址。也可以照旧 `npx @deepseek-ai/dsh web`。
+
+起来之后。
 
 1. 左侧 `Workspaces` 那行点文件夹图标，**先加一个工作区**。不加的话输入框是灰的，打不了字
 2. 预设选择器里选 **Minimal (Windows, sandboxed)**
@@ -125,7 +129,7 @@ irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
 ```sh
 npx dsh-win32 setup              # bundle + 预设 + 体检
 npx dsh-win32 setup --sandboxed  # 额外装沙箱内可用的 busybox 变体
-npx dsh-win32 setup --shortcut   # 额外建桌面快捷方式
+npx dsh-win32 setup --no-shortcut  # 不建桌面快捷方式
 ```
 
 ![预设选择器](./assets/shot-preset-picker.png)

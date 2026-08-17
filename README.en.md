@@ -22,7 +22,11 @@ A real screenshot. At `Workspace Write`, the agent runs the tests to see them fa
 npx dsh-win32 setup --sandboxed
 ```
 
-Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). Start it with `npx @deepseek-ai/dsh web`, then.
+Requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`).
+
+Setup leaves a **"DeepSeek Harness"** shortcut on your desktop, so starting it is a **double-click** rather than a command you look up every morning (pass `--no-shortcut` if you would rather not have one). It opens a console; use the **exact** url that console prints. `npx @deepseek-ai/dsh web` still works.
+
+Once it is up.
 
 1. On the `Workspaces` row in the sidebar, click the folder icon and **add a workspace first**. Until you do, the composer is greyed out and will not take input
 2. Pick **Minimal (Windows, sandboxed)** in the preset picker
@@ -41,7 +45,7 @@ Something not working? `npx dsh-win32 doctor` names each known trap.
 | Foreground command | unresolvable from parent links | resolved from the ConPTY console list (~81ms) |
 | Editor writes under Read Only | unfenced. the bare `fs-local` reports no `sandboxMode`, so the editor builds no policy and can rewrite any absolute path | **fenced by the session mode, in both presets** |
 | Install traps | koffi segfault chain, PS 5.1 crash loop, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
-| Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup` (+ optional desktop shortcut) |
+| Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup`, then **double-click the desktop shortcut** |
 
 ## Why this exists
 
@@ -74,7 +78,7 @@ That wires the runtime bundle into your web profile, installs the preset, create
 
 ```sh
 npx dsh-win32 setup              # bundle + preset + health report
-npx dsh-win32 setup --shortcut   # same, plus the desktop shortcut
+npx dsh-win32 setup --no-shortcut  # same, without the desktop shortcut
 ```
 
 ![the preset picker](./assets/shot-preset-picker.png)

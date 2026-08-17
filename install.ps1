@@ -18,7 +18,7 @@ if ([int]$parts[0] -lt 22 -or ([int]$parts[0] -eq 22 -and [int]$parts[1] -lt 19)
 }
 
 Write-Host 'Running dsh-win32 setup (bundle + preset + shortcut)...'
-npx --yes dsh-win32@latest setup --shortcut
+npx --yes dsh-win32@latest setup
 if ($LASTEXITCODE -ne 0) {
   Write-Host ''
   Write-Host 'setup failed (see the error above). Please report it: https://github.com/sjh9714/dsh-win32/issues' -ForegroundColor Yellow
