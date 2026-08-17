@@ -67,7 +67,9 @@ this.policy = ctx.fs.sandboxMode === undefined ? undefined : ctx.get('sandboxPol
 
 裸后端下这里是 `undefined`，于是**没有任何写入围栏**。权限徽章写着 Read Only，编辑器照样能改机器上任意绝对路径的文件。读能穿透是设计如此（`fs-sandbox` 在所有模式下也放行读），写能穿透不是。已上报 [#2066](https://github.com/deepseek-ai/deepseek-harness/discussions/2066)。
 
-**两个预设都换成了会围栏的后端**，GBK/UTF-16 读取解码照旧。`read-only` 拒绝一切写入，`workspace-write` 拒绝工作区、`/tmp`、系统临时目录之外的写入。`npx dsh-win32 doctor` 里的 `write_fence` 一项会告诉你装的是哪个版本。
+**两个预设都换成了会围栏的后端**，GBK/UTF-16 读取解码照旧。`read-only` 拒绝一切写入，`workspace-write` 只放行工作区、`/tmp` 和系统临时目录。
+
+**这里有个 Windows 上的坑，是核心的 `writableRoots` 带来的，我们继承了它。** 那个列表里的 `/tmp` 是 POSIX 字面量，在 Windows 上 `realpathSync.native('/tmp')` 会按当前盘符解析成 `C:\tmp`。这个目录如果存在（装机脚本常建），默认 ACL 是所有已认证用户可写的**机器级共享目录**，于是编辑器能往那儿写。更别扭的是 ACL 沙箱会拒绝 shell 往那儿写，所以两个写入平面对同一路径的判断不一致。已上报 [#2562](https://github.com/deepseek-ai/deepseek-harness/discussions/2562)（报告者 Binhna / @maycuatroi1）。在核心修掉之前，Windows 上把 `C:\tmp` 当成围栏外来对待。`npx dsh-win32 doctor` 里的 `write_fence` 一项会告诉你装的是哪个版本。
 
 Git Bash 预设一开始没接，理由是它本来就要求 `danger-full-access`。那个理由用错了工具。要求 `danger-full-access` 的是 **shell**，因为 MSYS 在受限令牌下起不来；**编辑器是另一个工具**，跟 shell 起没起来无关。所以徽章停在 Read Only 的会话，会是「shell 用不了 + 编辑器能改机器上任何文件」。`danger-full-access` 下围栏是直通的，所以接上去在预期模式下零代价，在非预期模式下把洞堵上。v0.11.1 起两个都接了。
 
