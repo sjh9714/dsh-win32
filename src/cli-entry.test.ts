@@ -15,7 +15,7 @@
  * long without a report.
  */
 
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -25,6 +25,20 @@ import { describe, expect, it } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, '..', 'bin', 'cli.mjs')
+
+/**
+ * Run `doctor` and return stdout, ignoring the exit code on purpose. `doctor`
+ * exits non-zero when a check warns, and a runner without pnpm warns, so
+ * asserting through a throwing spawn would fail for a reason that has nothing
+ * to do with whether the entry point dispatched.
+ */
+function runDoctor(entry: string): string {
+  const run = spawnSync(process.execPath, [entry, 'doctor'], {
+    encoding: 'utf8',
+    env: { ...process.env, DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-win32-home-')) },
+  })
+  return run.stdout ?? ''
+}
 
 describe('the CLI entry point', () => {
   it('runs when invoked through a symlink, which is how npm installs a bin', () => {
@@ -39,10 +53,7 @@ describe('the CLI entry point', () => {
       throw error
     }
 
-    const output = execFileSync(process.execPath, [link, 'doctor'], {
-      encoding: 'utf8',
-      env: { ...process.env, DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-win32-home-')) },
-    })
+    const output = runDoctor(link)
 
     // The assertion is only that it ran at all. The bug produced zero bytes
     // and exit 0, which every "did it crash" style check reads as success.
@@ -51,10 +62,6 @@ describe('the CLI entry point', () => {
   })
 
   it('still runs when invoked by its real path', () => {
-    const output = execFileSync(process.execPath, [CLI, 'doctor'], {
-      encoding: 'utf8',
-      env: { ...process.env, DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-win32-home-')) },
-    })
-    expect(output).toContain('dsh-win32 doctor')
+    expect(runDoctor(CLI)).toContain('dsh-win32 doctor')
   })
 })
