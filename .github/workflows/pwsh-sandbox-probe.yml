@@ -14,10 +14,16 @@ on:
 
 jobs:
   probe:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # yxccai/dsh-desktop#1 ran the same comparison on Windows 10 22H2
+        # (build 19045) and did not reproduce the failure, while every cell
+        # here was build 26100. Whether the fault is gated on the OS build is
+        # now load bearing, since anywhere-labs#266 is vendoring ~87MB of Node
+        # to avoid it. windows-2022 is build 20348, windows-2025 is 26100.
+        os: [windows-2022, windows-2025]
         # Which process creates the restricted token. `node` is the CLI shape.
         # `electron` is the packaged desktop shape, where the runner is an
         # ELECTRON_RUN_AS_NODE child. That is the only structural difference
@@ -30,8 +36,8 @@ jobs:
         # WHICH Node runs the runner. It uses a different major downloaded
         # straight from nodejs.org into its own directory, which is the shape a
         # packaged desktop app would ship, rather than the one already on PATH.
-        chain: ['node', 'electron', 'electron-spawn-node', 'electron-spawn-vendored-node']
-    name: chain ${{ matrix.chain }}
+        chain: ['node', 'electron']
+    name: ${{ matrix.os }} chain ${{ matrix.chain }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
