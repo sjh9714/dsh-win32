@@ -26,7 +26,11 @@ jobs:
         # that hands the runner to a separate Node runtime instead of loading
         # it in process. It turns this matrix from a diagnosis into a check on
         # whether the proposed fix actually holds.
-        chain: ['node', 'electron', 'electron-spawn-node']
+        # electron-spawn-vendored-node answers whether the repair depends on
+        # WHICH Node runs the runner. It uses a different major downloaded
+        # straight from nodejs.org into its own directory, which is the shape a
+        # packaged desktop app would ship, rather than the one already on PATH.
+        chain: ['node', 'electron', 'electron-spawn-node', 'electron-spawn-vendored-node']
     name: chain ${{ matrix.chain }}
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +44,16 @@ jobs:
       - name: install electron
         if: startsWith(matrix.chain, 'electron')
         run: npm install --no-save electron@43.4.0
+      - name: vendor an unrelated official node
+        if: matrix.chain == 'electron-spawn-vendored-node'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=v20.19.5
+          curl -fsSL -o node.zip "https://nodejs.org/dist/$ver/node-$ver-win-x64.zip"
+          unzip -q node.zip -d vendored
+          echo "PROBE_NODE_OVERRIDE=$PWD/vendored/node-$ver-win-x64/node.exe" >> "$GITHUB_ENV"
+          "./vendored/node-$ver-win-x64/node.exe" -v
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the
       # finding either way. It exits non-zero only when the unconfined control

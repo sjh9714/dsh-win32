@@ -107,8 +107,12 @@ await ctx.plugin(LocalSandboxProvider)
 await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: root })
 
 const CHAIN = process.env.SMOKE_CHAIN ?? 'node'
-/** Captured before anything swaps process.execPath meaning. */
-const NODE_PATH = process.execPath
+/**
+ * Captured before anything swaps what process.execPath means. PROBE_NODE_OVERRIDE
+ * points at a Node that did not run this script, which is what a packaged app
+ * would ship: a vendored binary from nodejs.org rather than whatever is on PATH.
+ */
+const NODE_PATH = process.env.PROBE_NODE_OVERRIDE ?? process.execPath
 
 /**
  * Point the windows-acl rung at an `ELECTRON_RUN_AS_NODE` trampoline instead of
@@ -170,7 +174,7 @@ try {
   describeHost()
   emit({ field: 'chain', chain: CHAIN })
   if (CHAIN.startsWith('electron')) {
-    electronInfo = useElectronChain(CHAIN === 'electron-spawn-node')
+    electronInfo = useElectronChain(CHAIN.startsWith('electron-spawn'))
     const v = run([electronInfo.electron, '--version'])
     emit({ field: 'electron', path: electronInfo.electron, version: v.stdout || v.stderr.slice(0, 80), exit: v.status ?? '(null)' })
 
@@ -178,7 +182,8 @@ try {
     // host, then every cell below fails for that reason and says nothing about
     // the runner, the token, or pwsh. Without this the two look identical.
     const alive = run([electronInfo.electron, '-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
-    emit({ field: 'node_path', path: NODE_PATH })
+    const nodeVersion = run([NODE_PATH, '-v'])
+    emit({ field: 'node_path', path: NODE_PATH, version: nodeVersion.stdout, vendored: process.env.PROBE_NODE_OVERRIDE === undefined ? 'no' : 'yes' })
     emit({
       field: 'control_electron_as_node', exit: alive.status ?? '(null)',
       exitHex: alive.status === null || alive.status === undefined ? '' : '0x' + (alive.status >>> 0).toString(16),
