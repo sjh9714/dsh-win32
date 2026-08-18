@@ -35,9 +35,11 @@ jobs:
       - name: pin koffi
         run: npm pkg set overrides.koffi=${{ matrix.koffi }}
       - run: npm install
+      # koffi's exports map blocks require()-ing its package.json by subpath,
+      # so read the file rather than resolving it as a module.
       - name: report what actually resolved
         shell: bash
-        run: node -p "require('@deepseek-ai/dsh-sandbox-windows-acl/node_modules/koffi/package.json').version" 2>/dev/null || node -p "require('koffi/package.json').version"
+        run: node -p "JSON.parse(require('node:fs').readFileSync('node_modules/koffi/package.json','utf8')).version"
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the
       # finding either way. It exits non-zero only when the unconfined control
