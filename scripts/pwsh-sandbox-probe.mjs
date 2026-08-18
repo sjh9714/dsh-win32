@@ -152,6 +152,25 @@ try {
     electronInfo = useElectronChain()
     const v = run([electronInfo.electron, '--version'])
     emit({ field: 'electron', path: electronInfo.electron, version: v.stdout || v.stderr.slice(0, 80), exit: v.status ?? '(null)' })
+
+    // Discriminator. If Electron-in-node mode cannot run a one-liner on this
+    // host, then every cell below fails for that reason and says nothing about
+    // the runner, the token, or pwsh. Without this the two look identical.
+    const alive = run([electronInfo.electron, '-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
+    emit({
+      field: 'control_electron_as_node', exit: alive.status ?? '(null)',
+      exitHex: alive.status === null || alive.status === undefined ? '' : '0x' + (alive.status >>> 0).toString(16),
+      stdout: alive.stdout.slice(0, 80), stderr: alive.stderr.slice(0, 200),
+    })
+
+    // And whether the trampoline itself loads the runner at all, unconfined.
+    // `--help` exercises argv parsing without creating a token or spawning.
+    const tramp = run([electronInfo.electron, electronInfo.trampoline, '--help'], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
+    emit({
+      field: 'control_trampoline', exit: tramp.status ?? '(null)',
+      exitHex: tramp.status === null || tramp.status === undefined ? '' : '0x' + (tramp.status >>> 0).toString(16),
+      stdout: tramp.stdout.slice(0, 150), stderr: tramp.stderr.slice(0, 250),
+    })
   }
 
   // Two positive controls, because "pwsh started" and "the token was never
