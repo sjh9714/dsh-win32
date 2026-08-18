@@ -18,37 +18,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # dsh-sandbox-windows-acl calls CreateProcessAsUserW through koffi at
-        # `^3.1.0`, and 3.1.3/3.1.4 ship a broken win32-x64 prebuilt. #203
-        # suspects that pin is what separates a working sandbox from a crashing
-        # one, so the probe runs against both sides of it rather than against
-        # whatever the range happens to resolve to.
-        koffi: ['3.1.4', '3.1.5']
-    name: koffi ${{ matrix.koffi }}
+        # Which process creates the restricted token. `node` is the CLI shape.
+        # `electron` is the packaged desktop shape, where the runner is an
+        # ELECTRON_RUN_AS_NODE child. That is the only structural difference
+        # between the two, so it is the cell #203 needs.
+        chain: ['node', 'electron']
+    name: chain ${{ matrix.chain }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # An override, not a direct install: dsh-sandbox-windows-acl pins its own
-      # range, so only an override moves the copy the runner actually loads.
-      - name: pin koffi
-        run: npm pkg set overrides.koffi=${{ matrix.koffi }}
       - run: npm install
-      # koffi's exports map blocks require()-ing its package.json by subpath, so
-      # read the file. An override that conflicts with the range a dependency
-      # asks for also stops koffi hoisting to the top, so search rather than
-      # assume one path. Informational only, never a reason to fail the job.
-      - name: report what actually resolved
-        continue-on-error: true
-        shell: bash
-        run: |
-          find node_modules -name package.json -path '*/koffi/*' -not -path '*/koffi/*/*' \
-            -exec node -p "'koffi ' + JSON.parse(require('node:fs').readFileSync('{}','utf8')).version + ' at {}'" \;
+      # Not saved to package.json: electron is only needed to reproduce the
+      # desktop launch chain, never to run or build the plugin. Version pinned
+      # to what the desktop app ships (#203).
+      - name: install electron
+        if: matrix.chain == 'electron'
+        run: npm install --no-save electron@43.4.0
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the
       # finding either way. It exits non-zero only when the unconfined control
       # cannot start the shell, which would mean the host is wrong.
       - name: probe
         timeout-minutes: 10
+        env:
+          SMOKE_CHAIN: ${{ matrix.chain }}
         run: node scripts/pwsh-sandbox-probe.mjs
