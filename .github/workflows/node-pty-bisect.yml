@@ -47,7 +47,7 @@ jobs:
         run: npm pkg set overrides.node-pty=${{ matrix.pty }}
       - run: npm install
       - name: report what actually resolved
-        run: node -p "'resolved node-pty: ' + require('node-pty/package.json').version"
+        run: node -p "require('node-pty/package.json').version"
       - run: npm run build
       # continue-on-error so every cell reports; the summary reads the log.
       - name: pty smoke
