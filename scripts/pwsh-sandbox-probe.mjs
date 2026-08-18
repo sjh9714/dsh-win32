@@ -19,7 +19,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
-import { release, tmpdir } from 'node:os'
+import { release } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { Context } from '@deepseek-ai/cordis'
@@ -102,9 +102,14 @@ try {
   // workspace root has to be refused. If it succeeds, nothing below is a
   // measurement of a restricted token.
   {
-    const outside = join(tmpdir(), `probe-outside-${process.pid}.txt`)
+    // Not os.tmpdir(): under workspace-write the runner provisions a private
+    // temp child, so a temp path is not reliably "outside". The workspace root
+    // is a mkdtemp child of cwd, so cwd itself is outside the grant.
+    const outside = join(process.cwd(), `probe-outside-${process.pid}.txt`)
     for (const mode of ['danger-full-access', 'workspace-write']) {
-      const argv = ['cmd', '/c', `echo probe> "${outside}"`]
+      // `copy /y NUL <file>` creates the file with no shell redirection, which
+      // `cmd /c` was mis-parsing when the redirect and the quoted path met.
+      const argv = ['cmd', '/c', 'copy', '/y', 'NUL', outside]
       const confined = mode === 'danger-full-access'
         ? argv
         : ctx.sandbox.confine(argv, { mode, workspaceRoot: root }).argv
