@@ -50,6 +50,7 @@
   ],
   "scripts": {
     "build": "tsc -p .",
+    "prepare": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc -p . --noEmit",
     "prepublishOnly": "npm run build && npm test"
