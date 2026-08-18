@@ -170,7 +170,7 @@ function collectChecks() {
 
   const pwsh7 = findPwsh7()
   if (pwsh7 !== undefined) add('powershell', 'pass', pwsh7)
-  else add('powershell', 'warn', 'PowerShell 7 not found. The Windows 5.1 fallback crashes (0xC0000142) inside the DSH sandbox; winget install Microsoft.PowerShell')
+  else add('powershell', 'warn', 'PowerShell 7 not found. The 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app; a confined 5.1 starts fine on this CLI path (scripts/pwsh-sandbox-probe.mjs); winget install Microsoft.PowerShell')
 
   const koffi = scanKoffi()
   const brokenKoffi = koffi.filter(({ version }) => version === '3.1.3' || version === '3.1.4')

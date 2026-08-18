@@ -44,7 +44,7 @@ Something not working? `npx dsh-win32 doctor` names each known trap.
 | Minimal preset | dead. every persistent-shell spawn throws on win32 | **works. real persistent Git Bash, state survives across tool calls** |
 | Foreground command | unresolvable from parent links | resolved from the ConPTY console list (~81ms) |
 | Editor writes under Read Only | unfenced. the bare `fs-local` reports no `sandboxMode`, so the editor builds no policy and can rewrite any absolute path | **fenced by the session mode, in both presets** (with one inherited Windows gap, see Honest limitations) |
-| Install traps | koffi segfault chain, PS 5.1 crash loop, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
+| Install traps | koffi segfault chain, PS 5.1 desktop crash reports, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
 | Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup`, then **double-click the desktop shortcut** |
 
 ## Why this exists
@@ -56,7 +56,7 @@ dsh-win32 closes that gap with three pieces.
 1. **A Windows-aware subprocess runtime.** Same stock runtime, plus the missing piece, a win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). Swapped in by bundle patch on win32 only. Other platforms keep the stock row untouched.
 2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction. v0.4 adds `minimal-windows-sandboxed`, a variant on busybox-w32 ash that STAYS inside the `workspace-write` ACL sandbox (`npx dsh-win32 setup --sandboxed`, downloads busybox on consent). Measured on windows-latest CI, the first persistent shell that survives the restricted token.
 3. **Legacy-encoding reads, everywhere they can exist.** Stock DSH refuses GBK/UTF-16 files outright (`FS_NOT_TEXT`) and garbles GBK output of native tools in the foreground shell. Both presets mount a filesystem reader (`dsh-win32/fs-confined` since v0.11, which also fences editor writes by the session permission mode) that sniffs and decodes GBK/UTF-16 on file reads, and since v0.5 the runtime decodes foreground-shell collect output the same way. Writes stay UTF-8, so editing a legacy file converts it. Deliberate and documented. PTY output stays undecodable at the plugin layer (node-pty decodes first), and shipped shells default to UTF-8 so the presets are unaffected.
-4. **A doctor.** Diagnoses the traps the community found the hard way. broken koffi 3.1.3/3.1.4 prebuilts (install failures, folder-picker and session-save crashes), missing PowerShell 7 (the 5.1 fallback crash-loops with 0xC0000142 inside the sandbox), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
+4. **A doctor.** Diagnoses the traps the community found the hard way. broken koffi 3.1.3/3.1.4 prebuilts (install failures, folder-picker and session-save crashes), missing PowerShell 7 (the 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app, though a confined 5.1 starts fine on this CLI path), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
 
 ## Install
 
