@@ -159,7 +159,7 @@ function useElectronChain(spawnNode) {
 function runThroughChain(argv, confined) {
   if (!confined || CHAIN === 'node') return run(argv)
   const env = { ELECTRON_RUN_AS_NODE: '1' }
-  if (CHAIN === 'electron-spawn-node') env.PROBE_NODE_PATH = NODE_PATH
+  if (CHAIN.startsWith('electron-spawn')) env.PROBE_NODE_PATH = NODE_PATH
   return run(argv, 60_000, env)
 }
 
@@ -184,6 +184,13 @@ try {
     const alive = run([electronInfo.electron, '-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
     const nodeVersion = run([NODE_PATH, '-v'])
     emit({ field: 'node_path', path: NODE_PATH, version: nodeVersion.stdout, vendored: process.env.PROBE_NODE_OVERRIDE === undefined ? 'no' : 'yes' })
+    // A node that cannot even print its version would make every confined cell
+    // below fail for that reason, which reads exactly like a sandbox verdict.
+    if (nodeVersion.status !== 0) {
+      emit({ field: 'fatal', error: `the node at ${NODE_PATH} is not runnable (exit ${String(nodeVersion.status)})` })
+      failures += 1
+      throw new Error('unusable node for the spawn chain')
+    }
     emit({
       field: 'control_electron_as_node', exit: alive.status ?? '(null)',
       exitHex: alive.status === null || alive.status === undefined ? '' : '0x' + (alive.status >>> 0).toString(16),
