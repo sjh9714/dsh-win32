@@ -15,12 +15,29 @@ on:
 jobs:
   probe:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # dsh-sandbox-windows-acl calls CreateProcessAsUserW through koffi at
+        # `^3.1.0`, and 3.1.3/3.1.4 ship a broken win32-x64 prebuilt. #203
+        # suspects that pin is what separates a working sandbox from a crashing
+        # one, so the probe runs against both sides of it rather than against
+        # whatever the range happens to resolve to.
+        koffi: ['3.1.4', '3.1.5']
+    name: koffi ${{ matrix.koffi }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # An override, not a direct install: dsh-sandbox-windows-acl pins its own
+      # range, so only an override moves the copy the runner actually loads.
+      - name: pin koffi
+        run: npm pkg set overrides.koffi=${{ matrix.koffi }}
       - run: npm install
+      - name: report what actually resolved
+        shell: bash
+        run: node -p "require('@deepseek-ai/dsh-sandbox-windows-acl/node_modules/koffi/package.json').version" 2>/dev/null || node -p "require('koffi/package.json').version"
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the
       # finding either way. It exits non-zero only when the unconfined control
