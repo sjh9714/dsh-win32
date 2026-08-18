@@ -1,0 +1,65 @@
+# Which node-pty introduced the win32 `pid 0` regression.
+#
+# rc.6 pins node-pty ^1.1.0 and the persistent shell works. rc.7 moved to
+# 1.2.0-beta.15 and on windows-latest the PTY reports `pid 0` and the process
+# is gone by the first write (deepseek-ai/deepseek-harness#2851). This runs the
+# same smoke against every 1.2.0 beta plus 1.1.0 as the control, so the answer
+# is a version rather than a guess.
+#
+# Manual only. It exists to produce one report, not to run on every push.
+name: node-pty bisect
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pty:
+          - '1.1.0'
+          - '1.2.0-beta.1'
+          - '1.2.0-beta.2'
+          - '1.2.0-beta.3'
+          - '1.2.0-beta.4'
+          - '1.2.0-beta.5'
+          - '1.2.0-beta.6'
+          - '1.2.0-beta.7'
+          - '1.2.0-beta.8'
+          - '1.2.0-beta.9'
+          - '1.2.0-beta.10'
+          - '1.2.0-beta.11'
+          - '1.2.0-beta.12'
+          - '1.2.0-beta.13'
+          - '1.2.0-beta.14'
+          - '1.2.0-beta.15'
+    name: node-pty ${{ matrix.pty }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # An override rather than a direct install: dsh-subprocess-local pins its
+      # own range, so only an override moves the copy it actually imports.
+      - name: pin node-pty
+        run: npm pkg set overrides.node-pty=${{ matrix.pty }}
+      - run: npm install
+      - name: report what actually resolved
+        run: node -p "'resolved node-pty: ' + require('node-pty/package.json').version"
+      - run: npm run build
+      # continue-on-error so every cell reports; the summary reads the log.
+      - name: pty smoke
+        id: smoke
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/pty-smoke.mjs
+      - name: verdict
+        run: |
+          if ("${{ steps.smoke.outcome }}" -eq "success") {
+            Write-Host "VERDICT ${{ matrix.pty }} PASS"
+          } else {
+            Write-Host "VERDICT ${{ matrix.pty }} FAIL"
+          }
+        shell: pwsh
