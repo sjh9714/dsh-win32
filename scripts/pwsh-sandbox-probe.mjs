@@ -18,8 +18,8 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { release } from 'node:os'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { release, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { Context } from '@deepseek-ai/cordis'
@@ -74,6 +74,16 @@ function describeHost() {
   emit({ field: 'antivirus', products: av.stdout === '' ? '(none reported)' : av.stdout, exit: av.status })
 }
 
+/** Git Bash, the shell this chain is already known to kill at cygheap init. */
+function findGitBash() {
+  for (const base of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]) {
+    if (base === undefined) continue
+    const candidate = join(base, 'Git', 'usr', 'bin', 'bash.exe')
+    if (existsSync(candidate)) return candidate
+  }
+  return ''
+}
+
 const root = mkdtempSync(join(process.cwd(), '.pwsh-probe-ws-'))
 
 const ctx = new Context()
@@ -83,6 +93,61 @@ await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot:
 let failures = 0
 try {
   describeHost()
+
+  // Two positive controls, because "pwsh started" and "the token was never
+  // applied" look identical without them. Both run through the same confine()
+  // call in the same job as the pwsh cells.
+  //
+  // Control A, the write fence. Under workspace-write a write outside the
+  // workspace root has to be refused. If it succeeds, nothing below is a
+  // measurement of a restricted token.
+  {
+    const outside = join(tmpdir(), `probe-outside-${process.pid}.txt`)
+    for (const mode of ['danger-full-access', 'workspace-write']) {
+      const argv = ['cmd', '/c', `echo probe> "${outside}"`]
+      const confined = mode === 'danger-full-access'
+        ? argv
+        : ctx.sandbox.confine(argv, { mode, workspaceRoot: root }).argv
+      const outcome = run(confined)
+      const wrote = existsSync(outside)
+      emit({
+        field: 'control_write_fence', mode, exit: outcome.status ?? '(null)',
+        wroteOutsideWorkspace: wrote ? 'yes' : 'no',
+        stderr: outcome.stderr.slice(0, 200),
+      })
+      rmSync(outside, { force: true })
+      // A fence that does not hold makes the pwsh cells unreadable.
+      if (mode === 'workspace-write' && wrote) failures += 1
+      if (mode === 'danger-full-access' && !wrote) failures += 1
+    }
+  }
+
+  // Control B, MSYS. Git Bash dies at cygheap init under this exact chain
+  // (NtSetInformationToken on TokenDefaultDacl, 0xC0000022) and starts fine
+  // unconfined, so it is a live read on whether the token is doing anything.
+  {
+    const bash = findGitBash()
+    if (bash === '') {
+      emit({ field: 'control_msys', result: 'git_bash_absent' })
+      failures += 1
+    } else {
+      for (const mode of ['danger-full-access', 'workspace-write']) {
+        const argv = [bash, '--noprofile', '--norc', '-c', 'exit 42']
+        const confined = mode === 'danger-full-access'
+          ? argv
+          : ctx.sandbox.confine(argv, { mode, workspaceRoot: root }).argv
+        const outcome = run(confined)
+        emit({
+          field: 'control_msys', mode, path: bash,
+          exit: outcome.status ?? '(null)',
+          exitHex: outcome.status === null || outcome.status === undefined ? '' : '0x' + (outcome.status >>> 0).toString(16),
+          launched: outcome.status === 42 ? 'yes' : 'no',
+          cygheapDenial: /NtSetInformationToken|cygheap/i.test(outcome.stderr + outcome.stdout) ? 'yes' : 'no',
+          stderr: (outcome.stderr || outcome.stdout).slice(0, 300),
+        })
+      }
+    }
+  }
 
   for (const [label, exe] of [['pwsh', 'pwsh.exe'], ['powershell51', 'powershell.exe']]) {
     const where = run(['where', exe])
