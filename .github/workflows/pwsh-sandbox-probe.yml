@@ -1,0 +1,30 @@
+# Does PowerShell start under the workspace-write restricted token when no
+# injecting AV is present?
+#
+# anywhere-labs/deepseek-harness-desktop#203 asked reporters to separate the
+# restricted token / pwsh startup chain from the extra triggering that 火绒,
+# 360 and enterprise EDR add by injecting DLLs. A windows-latest runner carries
+# Defender and nothing that injects, so it answers the first branch on its own.
+#
+# Manual only. It exists to produce one report, not to run on every push.
+name: pwsh sandbox probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      # The probe never fails on the workspace-write result: that cell is the
+      # finding either way. It exits non-zero only when the unconfined control
+      # cannot start the shell, which would mean the host is wrong.
+      - name: probe
+        timeout-minutes: 10
+        run: node scripts/pwsh-sandbox-probe.mjs
