@@ -35,11 +35,16 @@ jobs:
       - name: pin koffi
         run: npm pkg set overrides.koffi=${{ matrix.koffi }}
       - run: npm install
-      # koffi's exports map blocks require()-ing its package.json by subpath,
-      # so read the file rather than resolving it as a module.
+      # koffi's exports map blocks require()-ing its package.json by subpath, so
+      # read the file. An override that conflicts with the range a dependency
+      # asks for also stops koffi hoisting to the top, so search rather than
+      # assume one path. Informational only, never a reason to fail the job.
       - name: report what actually resolved
+        continue-on-error: true
         shell: bash
-        run: node -p "JSON.parse(require('node:fs').readFileSync('node_modules/koffi/package.json','utf8')).version"
+        run: |
+          find node_modules -name package.json -path '*/koffi/*' -not -path '*/koffi/*/*' \
+            -exec node -p "'koffi ' + JSON.parse(require('node:fs').readFileSync('{}','utf8')).version + ' at {}'" \;
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the
       # finding either way. It exits non-zero only when the unconfined control
