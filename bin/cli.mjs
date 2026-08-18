@@ -113,7 +113,12 @@ const NOT_WINDOWS = 'win32 only, not applicable on this platform'
  */
 function collectChecks() {
   const checks = []
-  const add = (name, status, detail) => checks.push({ name, status, detail })
+  // `fix` is the instruction on its own, separate from the description. The
+  // dsh-doctor v1.1 addendum aggregates these into `remediation`, and it
+  // explicitly does not assume the field exists, so it stays optional here and
+  // absent from the object when a check has nothing actionable to say.
+  const add = (name, status, detail, fix) =>
+    checks.push(fix === undefined ? { name, status, detail } : { name, status, detail, fix })
 
   const [major, minor] = process.versions.node.split('.').map(Number)
   // Range is the one declared by the deepseek-harness root package.json, not
@@ -127,7 +132,7 @@ function collectChecks() {
 
   const pnpm = findPnpm()
   if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
-  else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it. setup enables it through corepack, or: npm install -g pnpm')
+  else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it', 'npx dsh-win32 setup enables it through corepack, or: npm install -g pnpm')
 
   // Still vendor-prefixed because `installed_bundle` is only nominated for
   // r6/v1.1, not frozen (#1719). The four conditions and their statuses are
@@ -145,9 +150,9 @@ function collectChecks() {
   } else if (wiredBundle === SELF_VERSION) {
     add('dsh-win32/bundle', 'pass', wiredBundle)
   } else if (wiredBundle === 'wired, not installed') {
-    add('dsh-win32/bundle', 'warn', 'listed in the profile manifest but absent from its node_modules, so the runtime never loads; run: npx dsh-win32 setup')
+    add('dsh-win32/bundle', 'warn', 'listed in the profile manifest but absent from its node_modules, so the runtime never loads', 'npx dsh-win32 setup')
   } else if (wiredBundle === 'unreadable') {
-    add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown; run: npx dsh-win32 setup')
+    add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown', 'npx dsh-win32 setup')
   } else {
     // The age-gate note is load bearing. A profile's pnpm-workspace.yaml
     // carries minimumReleaseAgeExclude listing only the versions current when
@@ -155,7 +160,7 @@ function collectChecks() {
     // a no-op and pnpm answers "Already up to date". Without this sentence the
     // instruction silently does nothing and the warn looks like the user's
     // fault.
-    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}; run: npx dsh-win32 setup. If that reports no change, the profile's pnpm minimumReleaseAgeExclude gate is holding the new version, so retry the next day`)
+    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}`, 'npx dsh-win32 setup. If that reports no change, the profile\'s pnpm minimumReleaseAgeExclude gate is holding the new version, so retry the next day')
   }
 
   const gitBash = WIN ? findGitBash() : undefined
@@ -164,19 +169,19 @@ function collectChecks() {
     return { checks, gitBash }
   }
 
-  if (gitBash === undefined) add('git_bash', 'fail', 'Git Bash not found. Install from https://git-scm.com (winget install Git.Git), then re-run')
+  if (gitBash === undefined) add('git_bash', 'fail', 'Git Bash not found', 'install from https://git-scm.com (winget install Git.Git), then re-run')
   else if (isBashWrapper(gitBash)) add('git_bash', 'warn', `${gitBash} is the 47KB wrapper, not the real shell; the PTY pid lands on the wrapper (see #7)`)
   else add('git_bash', 'pass', gitBash)
 
   const pwsh7 = findPwsh7()
   if (pwsh7 !== undefined) add('powershell', 'pass', pwsh7)
-  else add('powershell', 'warn', 'PowerShell 7 not found. The 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app; a confined 5.1 starts fine on this CLI path (scripts/pwsh-sandbox-probe.mjs); winget install Microsoft.PowerShell')
+  else add('powershell', 'warn', 'PowerShell 7 not found. The 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app; a confined 5.1 starts fine on this CLI path (scripts/pwsh-sandbox-probe.mjs)', 'winget install Microsoft.PowerShell')
 
   const koffi = scanKoffi()
   const brokenKoffi = koffi.filter(({ version }) => version === '3.1.3' || version === '3.1.4')
   if (brokenKoffi.length > 0) {
     const where = brokenKoffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', ')
-    add('koffi', 'warn', `broken win32-x64 prebuilt (${where}); install failures, folder-picker and session-save crashes. Run: npx dsh-win32 fix`)
+    add('koffi', 'warn', `broken win32-x64 prebuilt (${where}); install failures, folder-picker and session-save crashes`, 'npx dsh-win32 fix')
   } else if (koffi.length === 0) add('koffi', 'pass', 'no koffi found in any profile')
   else add('koffi', 'pass', koffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', '))
 
@@ -185,7 +190,7 @@ function collectChecks() {
   if (existsSync(join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed'))) {
     add('sandbox_shell', 'pass', 'minimal-windows-sandboxed installed; persistent shell works inside workspace-write')
   } else {
-    add('sandbox_shell', 'warn', 'only the Git Bash preset is installed, which needs danger-full-access. For a shell that survives the workspace-write sandbox: npx dsh-win32 setup --sandboxed')
+    add('sandbox_shell', 'warn', 'only the Git Bash preset is installed, which needs danger-full-access', 'for a shell that survives the workspace-write sandbox: npx dsh-win32 setup --sandboxed')
   }
 
   // Stock minimal mounts the bare fs-local, which reports no sandboxMode, so
@@ -202,7 +207,7 @@ function collectChecks() {
   } else if (unfenced.length === 0) {
     add('write_fence', 'pass', `${installed.map(({ name }) => name).join(', ')} fence editor writes by the session permission mode`)
   } else {
-    add('write_fence', 'warn', `${unfenced.map(({ name }) => name).join(', ')} predates the write fence, so str_replace_editor can write outside the workspace under Read Only. Re-run: npx dsh-win32 setup`)
+    add('write_fence', 'warn', `${unfenced.map(({ name }) => name).join(', ')} predates the write fence, so str_replace_editor can write outside the workspace under Read Only`, 'npx dsh-win32 setup')
   }
 
   return { checks, gitBash }
@@ -218,7 +223,23 @@ function summarize(checks) {
   return { summary, exitCode }
 }
 
-function doctor({ json = false } = {}) {
+/**
+ * The `remediation` array of the dsh-doctor v1.1 addendum: the warn and fail
+ * checks in check order, one line each, keyed by the exact check name.
+ *
+ * The key is delimited by the first `]` rather than a character class, so a
+ * vendor-prefixed name like `dsh-win32/bundle` survives a consumer's parse.
+ * The charset the addendum first proposed would have dropped precisely those
+ * lines, silently. A check with no separate `fix` falls back to its `detail`,
+ * which the addendum allows, since it does not assume a `fix` field exists.
+ */
+function remediationLines(checks) {
+  return checks
+    .filter(({ status }) => status === 'warn' || status === 'fail')
+    .map(({ name, detail, fix }) => `[${name}] ${fix ?? detail}`)
+}
+
+function doctor({ json = false, remediation = false } = {}) {
   const { checks, gitBash } = collectChecks()
   const { summary, exitCode } = summarize(checks)
 
@@ -231,16 +252,20 @@ function doctor({ json = false } = {}) {
       summary,
       ok: summary.fail === 0,
       checks,
+      // Opt-in only. A frozen r5 consumer must never see this field.
+      ...(remediation ? { remediation: remediationLines(checks) } : {}),
     }, null, 2))
     return { gitBash, exitCode }
   }
 
   console.log(`dsh-win32 doctor (platform: ${process.platform})`)
-  for (const { name, status, detail } of checks) RENDER[status](`${name}: ${detail}`)
+  for (const { name, status, detail, fix } of checks) {
+    RENDER[status](fix === undefined ? `${name}: ${detail}` : `${name}: ${detail}. Fix: ${fix}`)
+  }
   if (!WIN) info('not Windows, so the Windows traps are skipped rather than reported')
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
   info('one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)')
-  info('machine-readable output: npx dsh-win32 doctor --json  (dsh-doctor/v1 envelope)')
+  info('machine-readable output: npx dsh-win32 doctor --json  (dsh-doctor/v1 envelope; add --remediation for the v1.1 keyed fix list)')
   info(`${REPO}  (issues and real-hardware reports welcome)`)
   return { gitBash, exitCode }
 }
@@ -456,9 +481,12 @@ async function main([command, ...rest]) {
   else if (command === 'doctor' || command === undefined) {
     // Exit codes apply to a direct `doctor` run only. `setup` calls doctor for
     // its report and decides for itself whether a finding is fatal.
-    process.exitCode = doctor({ json: rest.includes('--json') }).exitCode
+    process.exitCode = doctor({
+      json: rest.includes('--json'),
+      remediation: rest.includes('--remediation'),
+    }).exitCode
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json]|setup|fix] [--bash <path>] [--no-shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json [--remediation]]|setup|fix] [--bash <path>] [--no-shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
     process.exit(1)
   }
 }

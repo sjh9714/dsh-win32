@@ -26,7 +26,8 @@ const SPAWN_TIMEOUT = 30_000
 /** Run the CLI as a subprocess; `entry` selects the real CLI or the win32 sim. */
 function runDoctor(env: Record<string, string> = {}, entry = CLI): { envelope: any, exitCode: number } {
   const options = { encoding: 'utf8' as const, env: { ...process.env, ...env } }
-  const args = entry === CLI ? [entry, 'doctor', '--json'] : [entry]
+  const extra = env.DOCTOR_EXTRA_ARGS === undefined ? [] : env.DOCTOR_EXTRA_ARGS.split(' ')
+  const args = entry === CLI ? [entry, 'doctor', '--json', ...extra] : [entry]
   try {
     return { envelope: JSON.parse(execFileSync(process.execPath, args, options)), exitCode: 0 }
   } catch (error) {
@@ -136,5 +137,45 @@ describe('dsh-doctor/v1 envelope', () => {
     const pnpm = envelope.checks.find((c: any) => c.name === 'pnpm')
     expect(pnpm).toBeDefined()
     expect(['pass', 'warn']).toContain(pnpm.status)
+  }, SPAWN_TIMEOUT)
+})
+
+// The dsh-doctor v1.1 addendum pins the remediation key by BOUNDARY, not by a
+// character class. That distinction came out of this implementation: an early
+// draft matched /^\[([a-z_]+)\] /, which silently drops every vendor-prefixed
+// name, and `dsh-win32/bundle` is both vendor-prefixed and the most actionable
+// warn we emit. A charset regression here would not throw anywhere, it would
+// just quietly stop a consumer from seeing that line.
+describe('the remediation field (dsh-doctor v1.1)', () => {
+  const KEY = /^\[([^\]]+)\] /
+
+  it('is absent unless asked for, so a frozen r5 consumer never sees it', () => {
+    const { envelope } = runDoctor()
+    expect(envelope.remediation).toBeUndefined()
+  }, SPAWN_TIMEOUT)
+
+  it('carries one keyed line per warn or fail, in check order', () => {
+    const { envelope } = runDoctor({ DOCTOR_EXTRA_ARGS: '--remediation' })
+    const actionable = envelope.checks.filter((c: any) => c.status === 'warn' || c.status === 'fail')
+    expect(envelope.remediation).toHaveLength(actionable.length)
+    const keys = envelope.remediation.map((line: string) => KEY.exec(line)?.[1])
+    expect(keys).toEqual(actionable.map((c: any) => c.name))
+  }, SPAWN_TIMEOUT)
+
+  it('keeps a vendor-prefixed key parseable, which a charset rule would not', () => {
+    const { envelope } = runDoctor({ DOCTOR_EXTRA_ARGS: '--remediation' })
+    const vendor = envelope.remediation.filter((line: string) => KEY.exec(line)?.[1]?.includes('/'))
+    for (const line of vendor) {
+      const key = KEY.exec(line)?.[1]
+      expect(key).toBeDefined()
+      expect(envelope.checks.some((c: any) => c.name === key)).toBe(true)
+      // The body is free text and must survive the key having a separator.
+      expect(line.slice(KEY.exec(line)![0].length).length).toBeGreaterThan(0)
+    }
+  }, SPAWN_TIMEOUT)
+
+  it('never emits an empty fix, falling back to detail when a check has none', () => {
+    const { envelope } = runDoctor({ DOCTOR_EXTRA_ARGS: '--remediation' })
+    for (const line of envelope.remediation) expect(line.slice(KEY.exec(line)![0].length).trim()).not.toBe('')
   }, SPAWN_TIMEOUT)
 })
