@@ -14,7 +14,11 @@
  * its DLLs never reaches them, and adding those layers would only widen the
  * set of things that could explain a failure.
  *
- * SMOKE_CHAIN=node|electron picks which process creates the restricted token.
+ * SMOKE_CHAIN=node|electron|electron-spawn-node picks which process creates the
+ * restricted token. `electron-spawn-node` is the fix Albertchamberlain proposed
+ * in #203, an Electron parent that hands the runner to a separate Node runtime
+ * instead of loading it in process, so this cell verifies a repair rather than
+ * only locating a fault.
  * `electron` reproduces the desktop app's launch chain, where the runner is an
  * `ELECTRON_RUN_AS_NODE` child rather than a plain Node process. That is the
  * one structural difference between the packaged desktop app and the CLI, and
@@ -103,6 +107,8 @@ await ctx.plugin(LocalSandboxProvider)
 await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: root })
 
 const CHAIN = process.env.SMOKE_CHAIN ?? 'node'
+/** Captured before anything swaps process.execPath meaning. */
+const NODE_PATH = process.execPath
 
 /**
  * Point the windows-acl rung at an `ELECTRON_RUN_AS_NODE` trampoline instead of
@@ -110,21 +116,33 @@ const CHAIN = process.env.SMOKE_CHAIN ?? 'node'
  * contract is unchanged, so only the process that creates the restricted token
  * differs between the two cells.
  */
-function useElectronChain() {
+function useElectronChain(spawnNode) {
   const require_ = createRequire(import.meta.url)
   const electron = require_('electron')
   if (typeof electron !== 'string') throw new Error('electron did not resolve to a binary path')
-  const trampoline = join(root, 'trampoline.mjs')
-  writeFileSync(trampoline, [
+  const trampoline = join(root, spawnNode ? 'trampoline-spawn.mjs' : 'trampoline.mjs')
+  const common = [
     "import { pathToFileURL, fileURLToPath } from 'node:url'",
     "// The desktop trampoline drops the flag before handing off so the runner's",
     "// own child processes are not themselves Electron-in-node mode.",
     "for (const k of Object.keys(process.env)) if (k.toUpperCase() === 'ELECTRON_RUN_AS_NODE') delete process.env[k]",
     "const runner = fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/runner'))",
-    "// pathToFileURL, not a bare path: on Windows `import('D:\\...')` reads `D:` as a URL scheme.",
-    "await import(pathToFileURL(runner).href)",
-    '',
-  ].join('\n'), 'utf8')
+  ]
+  const body = spawnNode
+    ? [
+        "// Hand the runner to a separate Node runtime. Under ELECTRON_RUN_AS_NODE",
+        "// process.execPath is electron.exe, so the real node comes in by env.",
+        "import { spawnSync } from 'node:child_process'",
+        "const node = process.env.PROBE_NODE_PATH",
+        "if (!node) throw new Error('PROBE_NODE_PATH is required for the spawn-node chain')",
+        "const r = spawnSync(node, [runner, ...process.argv.slice(2)], { stdio: 'inherit' })",
+        "process.exit(r.status === null ? 1 : r.status)",
+      ]
+    : [
+        "// pathToFileURL, not a bare path: on Windows `import('D:\\...')` reads `D:` as a URL scheme.",
+        "await import(pathToFileURL(runner).href)",
+      ]
+  writeFileSync(trampoline, [...common, ...body, ''].join('\n'), 'utf8')
   ctx.sandbox.internals.windowsAclRunnerArgs = [electron, trampoline]
   return { electron, trampoline }
 }
@@ -135,7 +153,10 @@ function useElectronChain() {
  * the control differ from the thing it is controlling for.
  */
 function runThroughChain(argv, confined) {
-  return run(argv, 60_000, confined && CHAIN === 'electron' ? { ELECTRON_RUN_AS_NODE: '1' } : undefined)
+  if (!confined || CHAIN === 'node') return run(argv)
+  const env = { ELECTRON_RUN_AS_NODE: '1' }
+  if (CHAIN === 'electron-spawn-node') env.PROBE_NODE_PATH = NODE_PATH
+  return run(argv, 60_000, env)
 }
 
 /** Crashpad noise #203 already ruled out as a root cause, recorded so the ruling stays checkable. */
@@ -148,8 +169,8 @@ let failures = 0
 try {
   describeHost()
   emit({ field: 'chain', chain: CHAIN })
-  if (CHAIN === 'electron') {
-    electronInfo = useElectronChain()
+  if (CHAIN.startsWith('electron')) {
+    electronInfo = useElectronChain(CHAIN === 'electron-spawn-node')
     const v = run([electronInfo.electron, '--version'])
     emit({ field: 'electron', path: electronInfo.electron, version: v.stdout || v.stderr.slice(0, 80), exit: v.status ?? '(null)' })
 
@@ -157,6 +178,7 @@ try {
     // host, then every cell below fails for that reason and says nothing about
     // the runner, the token, or pwsh. Without this the two look identical.
     const alive = run([electronInfo.electron, '-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
+    emit({ field: 'node_path', path: NODE_PATH })
     emit({
       field: 'control_electron_as_node', exit: alive.status ?? '(null)',
       exitHex: alive.status === null || alive.status === undefined ? '' : '0x' + (alive.status >>> 0).toString(16),
@@ -165,7 +187,8 @@ try {
 
     // And whether the trampoline itself loads the runner at all, unconfined.
     // `--help` exercises argv parsing without creating a token or spawning.
-    const tramp = run([electronInfo.electron, electronInfo.trampoline, '--help'], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
+    const tramp = run([electronInfo.electron, electronInfo.trampoline, '--help'], 60_000,
+      { ELECTRON_RUN_AS_NODE: '1', PROBE_NODE_PATH: NODE_PATH })
     emit({
       field: 'control_trampoline', exit: tramp.status ?? '(null)',
       exitHex: tramp.status === null || tramp.status === undefined ? '' : '0x' + (tramp.status >>> 0).toString(16),

@@ -22,7 +22,11 @@ jobs:
         # `electron` is the packaged desktop shape, where the runner is an
         # ELECTRON_RUN_AS_NODE child. That is the only structural difference
         # between the two, so it is the cell #203 needs.
-        chain: ['node', 'electron']
+        # electron-spawn-node is the repair #203 proposed, an Electron parent
+        # that hands the runner to a separate Node runtime instead of loading
+        # it in process. It turns this matrix from a diagnosis into a check on
+        # whether the proposed fix actually holds.
+        chain: ['node', 'electron', 'electron-spawn-node']
     name: chain ${{ matrix.chain }}
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +38,7 @@ jobs:
       # desktop launch chain, never to run or build the plugin. Version pinned
       # to what the desktop app ships (#203).
       - name: install electron
-        if: matrix.chain == 'electron'
+        if: startsWith(matrix.chain, 'electron')
         run: npm install --no-save electron@43.4.0
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the
