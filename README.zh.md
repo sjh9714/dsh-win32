@@ -22,7 +22,7 @@
 npx dsh-win32 setup --sandboxed
 ```
 
-需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
+这条命令安装使用 busybox ash 的 **Minimal (Windows, sandboxed)** 预设，不需要 Git Bash，也不需要 WSL。只有运行 `npx dsh-win32 setup` 安装普通 **Minimal (Windows)** 预设时才需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
 
 装完桌面上会多一个 **「DeepSeek Harness」** 快捷方式，**双击就能起**，不用每次去翻命令（不想要的话加 `--no-shortcut`）。它会开一个控制台窗口，用那个窗口打印的**那一条**网址。也可以照旧 `npx @deepseek-ai/dsh web`。
 
@@ -129,14 +129,14 @@ irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
 它会把运行时 bundle 接入 web profile、安装预设、建桌面快捷方式并输出体检报告。想用 npx 也一样。
 
 ```sh
-npx dsh-win32 setup              # bundle + 预设 + 体检
-npx dsh-win32 setup --sandboxed  # 额外装沙箱内可用的 busybox 变体
+npx dsh-win32 setup              # bundle + Git Bash 预设 + 体检
+npx dsh-win32 setup --sandboxed  # bundle + busybox 沙箱预设 + 体检
 npx dsh-win32 setup --no-shortcut  # 不建桌面快捷方式
 ```
 
 ![预设选择器](./assets/shot-preset-picker.png)
 
-预设立即出现在选择器里，无需重启。需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
+预设立即出现在选择器里，无需重启。未安装 Git Bash 时，`setup --sandboxed` 只安装 `minimal-windows-sandboxed`；已安装 Git Bash 时，它会同时安装 `minimal-windows` 和 `minimal-windows-sandboxed`。普通 `setup` 只安装 `minimal-windows`，需要 [Git for Windows](https://git-scm.com)（`winget install Git.Git`）。
 
 沙箱变体（`minimal-windows-sandboxed`）只能由 `setup --sandboxed` 安装，因为它要下载 busybox-w32，而 busybox 是 GPLv2，插件激活时静默下载既是许可问题也是同意问题。接入 bundle 还需要 pnpm，因为 `dsh plugin add` 是用它装进 profile 目录的。缺失时 `setup` 会通过 corepack 自动启用，`doctor` 也会单独列出该项。
 
