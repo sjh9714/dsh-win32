@@ -17,10 +17,11 @@ import process from 'node:process'
 
 Object.defineProperty(process, 'platform', { value: 'win32' })
 
-if (process.env.DSH_SETUP_DEBUG === '1') {
-  const roots = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    ['programfiles', 'programfiles(x86)', 'localappdata', 'dsh_windows_bash'].includes(key.toLowerCase())))
-  console.log(`setup-env ${JSON.stringify(roots)}`)
+const testRoot = process.env.DSH_WINDOWS_TEST_ROOT
+if (testRoot !== undefined) {
+  process.env.ProgramFiles = testRoot
+  process.env['ProgramFiles(x86)'] = testRoot
+  process.env.LOCALAPPDATA = testRoot
 }
 
 const cli = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'cli.mjs')

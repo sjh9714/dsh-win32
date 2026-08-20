@@ -17,19 +17,14 @@ function runSetup({ sandboxed, bash }: { sandboxed: boolean, bash?: string }) {
   writeFileSync(busybox, '')
   const args = ['setup', '--no-bundle', '--no-shortcut']
   if (sandboxed) args.push('--sandboxed', '--busybox', busybox)
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-    !['programfiles', 'programfiles(x86)', 'localappdata', 'dsh_windows_bash'].includes(key.toLowerCase())))
   const run = spawnSync(process.execPath, [SIM], {
     encoding: 'utf8',
     env: {
-      ...env,
+      ...process.env,
       CLI_ARGS: args.join(' '),
       DSH_HOME: home,
-      DSH_SETUP_DEBUG: '1',
+      DSH_WINDOWS_TEST_ROOT: fixtures,
       DSH_WINDOWS_BASH: bash ?? join(fixtures, 'missing-bash.exe'),
-      ProgramFiles: fixtures,
-      'ProgramFiles(x86)': fixtures,
-      LOCALAPPDATA: fixtures,
     },
     timeout: SPAWN_TIMEOUT,
   })
