@@ -62,13 +62,13 @@
     <div id="chat">
       <div id="preset"></div>
       <div id="turn">
-        <div class="umsg">Set MARK=win42 in bash, then echo it from a SECOND bash call with the cwd.</div>
+        <div class="umsg">Fix the failing test in this workspace.</div>
         <div class="card" id="card1" style="visibility:hidden">
           <div class="chead"><span class="spin" id="s1">◐</span> <span class="tname">bash</span> <span id="c1arg">MARK=win42</span></div>
           <div class="cbody" id="c1out"></div>
         </div>
         <div class="card" id="card2" style="visibility:hidden">
-          <div class="chead"><span class="spin" id="s2">◐</span> <span class="tname">bash</span> echo persist:$MARK:$(pwd)</div>
+          <div class="chead"><span class="spin" id="s2">◐</span> <span class="tname">bash</span> npm test</div>
           <div class="cbody" id="c2out"></div>
         </div>
         <div class="amsg" id="amsg"></div>
@@ -78,14 +78,14 @@
   </div>
   <div id="shade"></div>
   <div id="term">
-    <div id="tbar">⊞ &nbsp;PowerShell — dsh-win32</div>
+    <div id="tbar">⊞ &nbsp;PowerShell · dsh-win32</div>
     <div id="tbody"></div>
   </div>
 </div>
 <div id="end">
   <div class="big">dsh-win32</div>
-  <div class="sub">Real Minimal mode on Windows · 极简模式的 Windows 补全</div>
-  <div class="cmd">dsh plugin --profile web add dsh-win32</div>
+  <div class="sub">Native Windows. No WSL.</div>
+  <div class="cmd">npx dsh-win32 setup --sandboxed</div>
 </div>
 </div>
 
@@ -97,87 +97,72 @@ const ph = (t,a,b) => clamp((t-a)/(b-a), 0, 1)
 const after = (t,a) => t >= a
 const typed = (s,p) => s.slice(0, Math.round(s.length*p))
 
-const ERR = 'terminal inspection is unsupported on platform win32'
-const CMD1 = 'dsh plugin --profile web add dsh-win32'
-const CMD2 = 'npx dsh-win32 setup'
+const CMD = 'npx dsh-win32 setup --sandboxed'
 const DOC = [
-  ['tg','  ok    node 22.23.2'],
-  ['tg','  ok    Git Bash: C:/Program Files/Git/bin/bash.exe'],
-  ['tg','  ok    PowerShell 7: C:/Program Files/PowerShell/7/pwsh.exe'],
-  ['tg','installed agent preset "minimal-windows"'],
+  ['tg','  ok    installed preset "minimal-windows-sandboxed"'],
+  ['tg','  ok    busybox ash is ready'],
+  ['tg','  ok    Workspace Write is ready'],
+  ['tw','Next add a workspace and choose the preset'],
 ]
 
-window.DURATION = 12400
+window.DURATION = 15000
 
 // camera keyframes: [t, scale, x, y] (translate applied before scale, focus point)
-function camera(t){
-  // scene A zoom onto the error row; C zoom onto persist row
-  let s=1, x=0, y=0
-  if (t>=1500 && t<3400){ const p=ph(t,1500,2800); s=1+.32*p; x=-420*p; y=-120*p }
-  if (t>=8300 && t<10800){ const p=ph(t,8300,9300); s=1+.34*p; x=-430*p; y=-260*p }
-  return `translate(${x}px,${y}px) scale(${s})`
+function camera(){
+  return 'none'
 }
 
 window.seek = function(t){
   // ── defaults (recomputed every call: pure function of t) ──
-  const A = t < 3400, B = t >= 3400 && t < 6600, C = t >= 6600 && t < 10800
-  $('world').style.transform = camera(t)
-  $('end').style.opacity = t >= 10800 ? String(ph(t,10800,11200)) : '0'
-  $('world').style.opacity = t >= 10800 ? String(1-ph(t,10800,11200)) : '1'
+  const A = t < 1700, B = t >= 1700 && t < 7500, C = t >= 7500 && t < 13200
+  $('world').style.transform = camera()
+  $('end').style.opacity = t >= 13200 ? String(ph(t,13200,13600)) : '0'
+  $('world').style.opacity = t >= 13200 ? String(1-ph(t,13200,13600)) : '1'
 
-  // preset chip + turn content differ between A and C
-  if (t < 6600) {
-    $('preset').innerHTML = 'Agent preset · <b>极简模式 (minimal)</b>'
+  // The opening is explicitly marked as an illustration.
+  if (t < 7500) {
+    $('preset').innerHTML = 'Illustrated setup reproduction'
   } else {
-    $('preset').innerHTML = 'Agent preset · <b>Minimal (Windows)</b>'
+    $('preset').innerHTML = 'Agent preset · <b>Minimal (Windows, sandboxed)</b>'
   }
 
-  // ── scene A: the failure ──
-  if (t < 6600) {
-    const show1 = after(t,500)
-    $('card1').style.visibility = show1 ? 'visible' : 'hidden'
+  // ── scene A: the illustrated setup prompt ──
+  if (t < 7500) {
+    $('card1').style.visibility = 'hidden'
     $('card2').style.visibility = 'hidden'
     $('amsg').textContent = ''
-    if (show1) {
-      const failed = after(t,1100)
-      $('s1').textContent = failed ? '✕' : '◐'
-      $('s1').style.color = failed ? 'var(--fail)' : 'var(--dim)'
-      $('c1out').innerHTML = failed ? `<span class="failrow">Error: ${ERR}</span>` : ''
-    }
   }
 
-  // ── scene C: the proof ──
-  if (t >= 6600) {
-    $('card1').style.visibility = after(t,6900) ? 'visible' : 'hidden'
-    const d1 = after(t,7400)
+  // ── scene C: the Workspace Write result ──
+  if (t >= 7500) {
+    $('card1').style.visibility = after(t,7800) ? 'visible' : 'hidden'
+    const d1 = after(t,8300)
     $('s1').textContent = d1 ? '✓' : '◐'
     $('s1').style.color = d1 ? 'var(--ok)' : 'var(--dim)'
-    $('c1out').innerHTML = d1 ? '<span class="ok">exit 0</span>' : ''
-    $('card2').style.visibility = after(t,7600) ? 'visible' : 'hidden'
-    const d2 = after(t,8200)
+    $('c1arg').textContent = 'npm test'
+    $('c1out').innerHTML = d1 ? '<span class="failrow">1 failing test</span>' : ''
+    $('card2').style.visibility = after(t,9000) ? 'visible' : 'hidden'
+    const d2 = after(t,9700)
     $('s2').textContent = d2 ? '✓' : '◐'
     $('s2').style.color = d2 ? 'var(--ok)' : 'var(--dim)'
-    $('c2out').innerHTML = d2 ? '<span class="ok">persist:win42:/c/work/demo</span>' : ''
-    const msg = 'State survived across calls. Persistent Git Bash, on Windows.'
-    $('amsg').textContent = after(t,8600) ? typed(msg, ph(t,8600,9600)) : ''
+    $('c2out').innerHTML = d2 ? '<span class="ok">all tests passed</span>' : ''
+    const msg = 'Workspace Write applied the fix inside this workspace.'
+    $('amsg').textContent = after(t,10300) ? typed(msg, ph(t,10300,11600)) : ''
   }
 
-  // ── scene B: terminal overlay ──
-  const bIn = ph(t,3400,3700), bOut = 1-ph(t,6300,6600)
-  const bVis = t>=3400 && t<6600 ? Math.min(bIn,bOut) : 0
+  // ── scene B: the one-command installation ──
+  const bIn = ph(t,1700,2000), bOut = 1-ph(t,7200,7500)
+  const bVis = t>=1700 && t<7500 ? Math.min(bIn,bOut) : 0
   $('shade').style.opacity = String(.55*bVis)
   $('term').style.opacity = String(bVis)
   if (bVis > 0) {
     let out = ''
-    const p1 = ph(t,3500,4300)
-    out += '<span class="tp">PS C:\\work\\demo&gt; </span>' + typed(CMD1,p1)
-    if (p1 >= 1 && after(t,4400)) out += '\n<span class="tg">+ dsh-win32@0.1.0</span>'
-    const p2 = ph(t,4700,5300)
-    if (after(t,4700)) out += '\n<span class="tp">PS C:\\work\\demo&gt; </span>' + typed(CMD2,p2)
-    if (p2 >= 1) DOC.forEach((row,i) => {
-      if (after(t, 5350 + i*200)) out += `\n<span class="${row[0]}">${row[1]}</span>`
+    const p1 = ph(t,1900,3200)
+    out += '<span class="tp">PS C:\\work\\demo&gt; </span>' + typed(CMD,p1)
+    if (p1 >= 1) DOC.forEach((row,i) => {
+      if (after(t, 3600 + i*500)) out += `\n<span class="${row[0]}">${row[1]}</span>`
     })
-    if (t < 5300 || (Math.floor(t/450)%2===0 && t<6100)) out += '<span class="caret"></span>'
+    if (t < 6200 || (Math.floor(t/450)%2===0 && t<7000)) out += '<span class="caret"></span>'
     $('tbody').innerHTML = out
   }
 }

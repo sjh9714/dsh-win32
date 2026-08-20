@@ -29,7 +29,7 @@
     width:1109px;
     background:url('../assets/shot-persistent-sandboxed.png') no-repeat;
     background-size:cover;background-position:right center;
-    filter:saturate(0.55) brightness(0.72);
+    filter:blur(5px) saturate(0.55) brightness(0.72);
   }
   /* Left-to-right fade so the text column reads on a clean ground. */
   #veil{
@@ -41,7 +41,7 @@
       rgba(15,17,21,0.42) 62%,
       rgba(15,17,21,0.20) 100%);
   }
-  #copy{position:absolute;left:64px;top:0;height:640px;width:600px;display:flex;flex-direction:column;justify-content:center}
+  #copy{position:absolute;z-index:1;left:64px;top:0;height:640px;width:600px;display:flex;flex-direction:column;justify-content:center}
   #eyebrow{font-size:19px;letter-spacing:3.5px;color:var(--dim);text-transform:uppercase;font-weight:600}
   #name{margin-top:16px;font-family:var(--mono);font-size:86px;font-weight:800;color:var(--ink);letter-spacing:-2.5px;line-height:1}
   #tag{margin-top:22px;font-size:31px;color:var(--accent);font-weight:700;line-height:1.36}
@@ -53,15 +53,14 @@
   <div id="shot"></div>
   <div id="veil"></div>
   <div id="copy">
-    <div id="eyebrow">DeepSeek Harness · Windows</div>
+    <div id="eyebrow">DeepSeek Harness for Windows</div>
     <div id="name">dsh-win32</div>
-    <div id="tag">让极简模式在 Windows 上<br>真正跑起来</div>
+    <div id="tag">Native Windows.<br>No WSL.</div>
     <div id="chips">
-      <span class="chip">沙箱内持久 shell</span>
-      <span class="chip">极简模式可用</span>
-      <span class="chip">前台命令识别</span>
-      <span class="chip">GBK 读取</span>
+      <span class="chip">One command</span>
+      <span class="chip">Workspace Write</span>
+      <span class="chip">Sandboxed preset</span>
     </div>
-    <div id="proof">✓ 真机截图，非示意图</div>
+    <div id="proof">Real Windows session at right</div>
   </div>
 </div>

@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "在 Windows 上把 DSH 用起来。一行装好极简模式的持久 shell，沙箱内也能用 | Get DSH working on Windows: persistent shell for Minimal mode, sandbox included",
   "type": "module",
   "license": "MIT",
@@ -45,6 +45,11 @@
     "lib",
     "bin",
     "preset",
+    "docs/windows-details.md",
+    "assets/demo.gif",
+    "assets/shot-persistent-sandboxed.png",
+    "assets/shot-persistent-gitbash.png",
+    "assets/shot-preset-picker.png",
     "cordis.patch.yml",
     "README.en.md"
   ],

@@ -17,6 +17,13 @@ import process from 'node:process'
 
 Object.defineProperty(process, 'platform', { value: 'win32' })
 
+const testRoot = process.env.DSH_WINDOWS_TEST_ROOT
+if (testRoot !== undefined) {
+  process.env.ProgramFiles = testRoot
+  process.env['ProgramFiles(x86)'] = testRoot
+  process.env.LOCALAPPDATA = testRoot
+}
+
 const cli = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'cli.mjs')
 // The CLI dispatches only when argv[1] resolves to its own path.
 process.argv = [process.argv[0], cli, ...(process.env.CLI_ARGS ?? 'doctor --json').split(' ')]

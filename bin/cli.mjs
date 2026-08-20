@@ -403,8 +403,9 @@ async function setup(args) {
   const { gitBash } = doctor()
   console.log('')
 
+  const sandboxed = args.includes('--sandboxed')
   const bashPath = explicitBash ?? gitBash
-  if (bashPath === undefined) {
+  if (bashPath === undefined && !sandboxed) {
     console.error('setup: Git Bash is required for the minimal-windows preset (or pass --bash <path>)')
     process.exit(1)
   }
@@ -416,11 +417,15 @@ async function setup(args) {
       info('npx --yes @deepseek-ai/dsh plugin --profile web add -w dsh-win32')
     }
   }
-  const installed = substitutePreset(PRESET_ID, bashPath)
-  console.log(`installed agent preset "${PRESET_ID}" -> ${installed}`)
-  console.log('it appears in the preset picker immediately (no restart needed)')
+  if (bashPath === undefined) {
+    console.log('Git Bash was not found; skipped the "minimal-windows" preset')
+  } else {
+    const installed = substitutePreset(PRESET_ID, bashPath)
+    console.log(`installed agent preset "${PRESET_ID}" -> ${installed}`)
+    console.log('it appears in the preset picker immediately (no restart needed)')
+  }
 
-  if (args.includes('--sandboxed')) {
+  if (sandboxed) {
     const busyboxFlag = args.indexOf('--busybox')
     const busybox = busyboxFlag !== -1 ? args[busyboxFlag + 1] : (WIN ? await ensureBusybox() : undefined)
     if (busybox === undefined) {
@@ -455,7 +460,6 @@ async function setup(args) {
   // A preset in the picker is not a working session. Three more things have to
   // happen and the first one has no in-product guidance at all, so a user who
   // gets this far still lands on a greyed-out composer with no hint (#14).
-  const sandboxed = args.includes('--sandboxed')
   console.log('next, in order:')
   if (WIN && !args.includes('--no-shortcut')) {
     console.log('  1. double-click "DeepSeek Harness" on your desktop  (or: npx @deepseek-ai/dsh web)')
