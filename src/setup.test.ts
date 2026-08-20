@@ -25,6 +25,7 @@ function runSetup({ sandboxed, bash }: { sandboxed: boolean, bash?: string }) {
       ...env,
       CLI_ARGS: args.join(' '),
       DSH_HOME: home,
+      DSH_SETUP_DEBUG: '1',
       DSH_WINDOWS_BASH: bash ?? join(fixtures, 'missing-bash.exe'),
       ProgramFiles: fixtures,
       'ProgramFiles(x86)': fixtures,
