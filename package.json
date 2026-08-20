@@ -45,6 +45,11 @@
     "lib",
     "bin",
     "preset",
+    "docs/windows-details.md",
+    "assets/demo.gif",
+    "assets/shot-persistent-sandboxed.png",
+    "assets/shot-persistent-gitbash.png",
+    "assets/shot-preset-picker.png",
     "cordis.patch.yml",
     "README.en.md"
   ],
