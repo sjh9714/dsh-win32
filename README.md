@@ -10,6 +10,8 @@ Run DSH Minimal mode on Windows with the sandboxed preset.
 npx dsh-win32 setup --sandboxed
 ```
 
+DeepSeek Harness already runs natively on Windows with PowerShell. dsh-win32 adds persistent Minimal presets, including one that survives Workspace Write.
+
 This preset uses busybox ash, so Git Bash and WSL are not required.
 
 [中文](./README.zh.md) · [Windows details](./docs/windows-details.md)
@@ -40,6 +42,14 @@ After setup, start DSH, add a workspace, and choose the preset.
 
 - **Minimal (Windows, sandboxed)** uses busybox ash inside `Workspace Write`. Install it with `npx dsh-win32 setup --sandboxed`.
 - **Minimal (Windows)** uses Git Bash and needs `danger-full-access`. Install it with `npx dsh-win32 setup` after installing [Git for Windows](https://git-scm.com).
+
+Using DSH Desktop instead of the Web profile?
+
+```powershell
+npx dsh-win32 setup --sandboxed --profile desktop --no-shortcut
+```
+
+Restart DSH Desktop after setup, then choose **Minimal (Windows, sandboxed)**.
 
 ## Doctor
 
