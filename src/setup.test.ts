@@ -75,6 +75,7 @@ describe('setup on Windows', () => {
     const npx = join(bin, 'npx')
     writeFileSync(npx, '#!/bin/sh\nprintf "%s\\n" "$@" > "$DSH_NPX_ARGS"\n')
     chmodSync(npx, 0o755)
+    writeFileSync(join(bin, 'npx.cmd'), '@echo off\r\n:args\r\nif "%~1"=="" goto done\r\n>>"%DSH_NPX_ARGS%" echo %~1\r\nshift\r\ngoto args\r\n:done\r\n')
 
     const run = spawnSync(process.execPath, [CLI, 'setup', '--no-shortcut', '--profile', 'desktop', '--sandboxed', '--busybox', busybox, '--bash', bash], {
       encoding: 'utf8',
