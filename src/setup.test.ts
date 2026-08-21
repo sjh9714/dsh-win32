@@ -89,7 +89,8 @@ describe('setup on Windows', () => {
     })
 
     expect(run.status).toBe(0)
-    expect(readFileSync(npxArgs, 'utf8')).toContain('--profile\ndesktop\n')
+    const argv = readFileSync(npxArgs, 'utf8').trim().split(/\r?\n/)
+    expect(argv.slice(argv.indexOf('--profile'), argv.indexOf('--profile') + 2)).toEqual(['--profile', 'desktop'])
   }, SPAWN_TIMEOUT)
 
   it('rejects an unsafe profile name before writing presets', () => {
