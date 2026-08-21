@@ -305,10 +305,10 @@ function runDshPlugin(args) {
   })
 }
 
-function ensureBundle() {
-  const wired = bundleVersion()
+function ensureBundle(profile = 'web') {
+  const wired = bundleVersion(profile)
   if (wired === SELF_VERSION) {
-    ok(`bundle dsh-win32@${wired} already wired into the web profile`)
+    ok(`bundle dsh-win32@${wired} already wired into the ${profile} profile`)
     return
   }
   if (wired !== undefined) {
@@ -323,7 +323,7 @@ function ensureBundle() {
       ok('pnpm enabled through corepack')
     }
   }
-  if (wired === undefined) console.log('wiring the dsh-win32 bundle into the web profile (one-time)...')
+  if (wired === undefined) console.log(`wiring the dsh-win32 bundle into the ${profile} profile (one-time)...`)
   // The profile carries a pnpm minimum-release-age gate, and its exclude list
   // only ever names the version current at wiring time, so a release published
   // today is invisible to an upgrade and pnpm answers "Already up to date"
@@ -333,7 +333,7 @@ function ensureBundle() {
   info(`installing the exact version you invoked (${SELF_VERSION}) and overriding pnpm's minimum-release-age for this install only`)
   info('the profile\'s own policy file is left untouched')
   // -w: the profile dir is a pnpm workspace root; pnpm 10+ refuses a bare add there.
-  runDshPlugin(['--profile', 'web', 'add', '-w', `dsh-win32@${SELF_VERSION}`, '--config.minimumReleaseAge=0'])
+  runDshPlugin(['--profile', profile, 'add', '-w', `dsh-win32@${SELF_VERSION}`, '--config.minimumReleaseAge=0'])
 }
 
 function fix() {
@@ -400,6 +400,12 @@ function createShortcut() {
 async function setup(args) {
   const bashFlagIndex = args.indexOf('--bash')
   const explicitBash = bashFlagIndex !== -1 ? args[bashFlagIndex + 1] : undefined
+  const profileFlagIndex = args.indexOf('--profile')
+  const profile = profileFlagIndex === -1 ? 'web' : args[profileFlagIndex + 1]
+  if (profile === undefined || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(profile)) {
+    console.error('setup: --profile needs one safe profile name')
+    process.exit(1)
+  }
   const { gitBash } = doctor()
   console.log('')
 
@@ -411,10 +417,10 @@ async function setup(args) {
   }
   if (!args.includes('--no-bundle')) {
     try {
-      ensureBundle()
+      ensureBundle(profile)
     } catch {
       warn('bundle wiring failed. The preset still installs below; wire the bundle manually with')
-      info('npx --yes @deepseek-ai/dsh plugin --profile web add -w dsh-win32')
+      info(`npx --yes @deepseek-ai/dsh plugin --profile ${profile} add -w dsh-win32`)
     }
   }
   if (bashPath === undefined) {
@@ -442,7 +448,7 @@ async function setup(args) {
   // common `npx dsh-win32 setup` did not, which is two entry points with
   // different outcomes for no reason. --shortcut is still accepted so the
   // installer and anyone's notes keep working.
-  if (WIN && !args.includes('--no-shortcut')) {
+  if (profile === 'web' && WIN && !args.includes('--no-shortcut')) {
     try {
       createShortcut()
       console.log('created desktop shortcut "DeepSeek Harness" (skip it with --no-shortcut)')
@@ -461,11 +467,13 @@ async function setup(args) {
   // happen and the first one has no in-product guidance at all, so a user who
   // gets this far still lands on a greyed-out composer with no hint (#14).
   console.log('next, in order:')
-  if (WIN && !args.includes('--no-shortcut')) {
+  if (profile === 'web' && WIN && !args.includes('--no-shortcut')) {
     console.log('  1. double-click "DeepSeek Harness" on your desktop  (or: npx @deepseek-ai/dsh web)')
     console.log('     it opens a console, then use the EXACT url that console prints')
   } else {
-    console.log('  1. npx @deepseek-ai/dsh web        (use the EXACT url it prints)')
+    console.log(profile === 'web'
+      ? '  1. npx @deepseek-ai/dsh web        (use the EXACT url it prints)'
+      : `  1. start or restart the DSH host that uses profile "${profile}"`)
   }
   console.log('  2. sidebar > Workspaces > folder icon, and add a workspace')
   console.log('     until you do, the composer is greyed out and takes no input')
@@ -490,7 +498,7 @@ async function main([command, ...rest]) {
       remediation: rest.includes('--remediation'),
     }).exitCode
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json [--remediation]]|setup|fix] [--bash <path>] [--no-shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json [--remediation]]|setup|fix] [--profile <name>] [--bash <path>] [--no-shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
     process.exit(1)
   }
 }

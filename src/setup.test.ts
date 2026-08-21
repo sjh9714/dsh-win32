@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const SIM = join(here, '..', 'scripts', 'win32-sim.mjs')
+const CLI = join(here, '..', 'bin', 'cli.mjs')
 const SPAWN_TIMEOUT = 30_000
 
 function runSetup({ sandboxed, bash }: { sandboxed: boolean, bash?: string }) {
@@ -58,5 +59,54 @@ describe('setup on Windows', () => {
     expect(run.status).toBe(0)
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows'))).toBe(true)
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows-sandboxed'))).toBe(true)
+  }, SPAWN_TIMEOUT)
+
+  it('wires the bundle into the selected desktop profile', () => {
+    const fixtures = mkdtempSync(join(tmpdir(), 'dsh-win32-setup-profile-'))
+    const home = mkdtempSync(join(tmpdir(), 'dsh-win32-setup-profile-home-'))
+    const bash = join(fixtures, 'Git', 'usr', 'bin', 'bash.exe')
+    const busybox = join(fixtures, 'busybox64.exe')
+    const npxArgs = join(fixtures, 'npx-args.txt')
+    const bin = join(fixtures, 'bin')
+    mkdirSync(dirname(bash), { recursive: true })
+    writeFileSync(bash, '')
+    writeFileSync(busybox, '')
+    mkdirSync(bin)
+    const npx = join(bin, 'npx')
+    writeFileSync(npx, '#!/bin/sh\nprintf "%s\\n" "$@" > "$DSH_NPX_ARGS"\n')
+    chmodSync(npx, 0o755)
+
+    const run = spawnSync(process.execPath, [CLI, 'setup', '--no-shortcut', '--profile', 'desktop', '--sandboxed', '--busybox', busybox, '--bash', bash], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        DSH_HOME: home,
+        DSH_NPX_ARGS: npxArgs,
+        PATH: `${bin}:${process.env.PATH ?? ''}`,
+      },
+      timeout: SPAWN_TIMEOUT,
+    })
+
+    expect(run.status).toBe(0)
+    expect(readFileSync(npxArgs, 'utf8')).toContain('--profile\ndesktop\n')
+  }, SPAWN_TIMEOUT)
+
+  it('rejects an unsafe profile name before writing presets', () => {
+    const fixtures = mkdtempSync(join(tmpdir(), 'dsh-win32-setup-profile-unsafe-'))
+    const home = mkdtempSync(join(tmpdir(), 'dsh-win32-setup-profile-unsafe-home-'))
+    const bash = join(fixtures, 'bash.exe')
+    const busybox = join(fixtures, 'busybox64.exe')
+    writeFileSync(bash, '')
+    writeFileSync(busybox, '')
+
+    const run = spawnSync(process.execPath, [CLI, 'setup', '--no-bundle', '--no-shortcut', '--profile', 'desktop&calc', '--sandboxed', '--busybox', busybox, '--bash', bash], {
+      encoding: 'utf8',
+      env: { ...process.env, DSH_HOME: home },
+      timeout: SPAWN_TIMEOUT,
+    })
+
+    expect(run.status).toBe(1)
+    expect(run.stderr).toContain('--profile needs one safe profile name')
+    expect(existsSync(join(home, '.agent-presets'))).toBe(false)
   }, SPAWN_TIMEOUT)
 })
