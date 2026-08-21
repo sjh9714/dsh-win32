@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 import { describe, expect, it } from 'vitest'
@@ -83,7 +83,7 @@ describe('setup on Windows', () => {
         ...process.env,
         DSH_HOME: home,
         DSH_NPX_ARGS: npxArgs,
-        PATH: `${bin}:${process.env.PATH ?? ''}`,
+        PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
       },
       timeout: SPAWN_TIMEOUT,
     })
