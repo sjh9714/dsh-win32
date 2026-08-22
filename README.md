@@ -1,6 +1,6 @@
 # dsh-win32
 
-## Native Windows. No WSL.
+## Persistent shell on Windows. No WSL.
 
 **One command. Workspace Write.**
 
@@ -13,6 +13,9 @@ npx dsh-win32 setup --sandboxed
 DeepSeek Harness already runs natively on Windows with PowerShell. dsh-win32 adds persistent Minimal presets, including one that survives Workspace Write.
 
 This preset uses busybox ash, so Git Bash and WSL are not required.
+
+> [!IMPORTANT]
+> dsh-win32 0.15.1 supports DSH rc.6. DSH rc.8 and later already ship Minimal with PowerShell on Windows. The current DSH subprocess package still pins `node-pty@1.2.0-beta.15`, which fails this plugin's Windows PTY path before the first write. Use stock Minimal on current DSH or follow [the upstream compatibility report](https://github.com/deepseek-ai/deepseek-harness/discussions/2851) until that dependency changes.
 
 [中文](./README.zh.md) · [Windows details](./docs/windows-details.md)
 

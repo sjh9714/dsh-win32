@@ -2,6 +2,9 @@
 
 **在 Windows 上把 DSH 用起来。极简模式、持久 shell、沙箱，全部可用。**
 
+> [!IMPORTANT]
+> dsh-win32 0.15.1 支持 DSH rc.6。DSH rc.8 及以后版本已经在 Windows 的官方 Minimal 中使用 PowerShell。当前 DSH subprocess package 仍固定 `node-pty@1.2.0-beta.15`，这个版本会让本插件的 Windows PTY 在第一次写入前退出。当前 DSH 用户请先使用官方 Minimal，或关注[上游兼容性报告](https://github.com/deepseek-ai/deepseek-harness/discussions/2851)等待依赖更新。
+
 [English](./README.md)
 
 <p>
@@ -44,9 +47,9 @@ npx dsh-win32 setup --sandboxed
 
 代价是 ash 不是 bash，没有数组、没有 `[[ ]]`。原因写在下面「为什么会这样」。
 
-**② 极简模式真正可用**
+**② rc.7 及更早版本的极简模式可用**
 
-Windows 上选极简模式会直接报错，持久 shell 和依赖它的极简模式整个用不了。我们把官方缺的那块补上了，**不改核心一行代码**。取消命令（Ctrl-C）也修好了，不再把整个会话打断。
+DSH rc.7 及更早版本在 Windows 上选择极简模式会直接报错。rc.8 已经为 Windows 的官方 Minimal 增加 PowerShell。本项目继续提供 Git Bash 和 busybox ash 两种替代 shell，其中 busybox 预设的目标仍是 Workspace Write。
 
 ![Windows 上真正可用的极简模式](./assets/shot-persistent-gitbash.png)
 
