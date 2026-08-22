@@ -140,6 +140,32 @@ describe('dsh-doctor/v1 envelope', () => {
   }, SPAWN_TIMEOUT)
 })
 
+describe('koffi runtime loading', () => {
+  function homeWithKoffi(source: string) {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-doctor-koffi-'))
+    const koffi = join(home, 'profiles', 'web', 'node_modules', 'koffi')
+    mkdirSync(koffi, { recursive: true })
+    writeFileSync(join(koffi, 'package.json'), JSON.stringify({ version: '3.1.2', main: 'index.js' }))
+    writeFileSync(join(koffi, 'index.js'), source)
+    return home
+  }
+
+  it('passes a supported koffi package that actually loads', () => {
+    const { envelope } = runDoctor({ DSH_HOME: homeWithKoffi('module.exports = {}') }, SIM)
+    const koffi = envelope.checks.find((c: any) => c.name === 'koffi')
+    expect(koffi.status).toBe('pass')
+    expect(koffi.detail).toContain('3.1.2 in "web"')
+  }, SPAWN_TIMEOUT)
+
+  it('warns when a supported version is present but cannot load', () => {
+    const { envelope } = runDoctor({ DSH_HOME: homeWithKoffi('throw new Error("native load failed")') }, SIM)
+    const koffi = envelope.checks.find((c: any) => c.name === 'koffi')
+    expect(koffi.status).toBe('warn')
+    expect(koffi.detail).toMatch(/runtime load failed/)
+    expect(koffi.fix).toBe('npx dsh-win32 fix')
+  }, SPAWN_TIMEOUT)
+})
+
 // The dsh-doctor v1.1 addendum pins the remediation key by BOUNDARY, not by a
 // character class. That distinction came out of this implementation: an early
 // draft matched /^\[([a-z_]+)\] /, which silently drops every vendor-prefixed

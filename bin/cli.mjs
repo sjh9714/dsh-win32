@@ -81,7 +81,9 @@ function scanKoffi() {
     const manifest = join(profilesDir, profile, 'node_modules', 'koffi', 'package.json')
     if (!existsSync(manifest)) continue
     try {
-      results.push({ profile, version: JSON.parse(readFileSync(manifest, 'utf8')).version })
+      const version = JSON.parse(readFileSync(manifest, 'utf8')).version
+      const loadable = tryExec(process.execPath, ['-e', 'require(process.argv[1])', dirname(manifest)]) !== undefined
+      results.push({ profile, version, loadable })
     } catch {
       // Unreadable manifest: nothing to report for this profile.
     }
@@ -179,9 +181,18 @@ function collectChecks() {
 
   const koffi = scanKoffi()
   const brokenKoffi = koffi.filter(({ version }) => version === '3.1.3' || version === '3.1.4')
-  if (brokenKoffi.length > 0) {
-    const where = brokenKoffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', ')
-    add('koffi', 'warn', `broken win32-x64 prebuilt (${where}); install failures, folder-picker and session-save crashes`, 'npx dsh-win32 fix')
+  const unloadableKoffi = koffi.filter(({ loadable }) => !loadable)
+  if (brokenKoffi.length > 0 || unloadableKoffi.length > 0) {
+    const problems = []
+    if (brokenKoffi.length > 0) {
+      const where = brokenKoffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', ')
+      problems.push(`broken win32-x64 prebuilt (${where}); install failures, folder-picker and session-save crashes`)
+    }
+    if (unloadableKoffi.length > 0) {
+      const where = unloadableKoffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', ')
+      problems.push(`runtime load failed (${where}); skipping the install script is safe only when this load succeeds afterward`)
+    }
+    add('koffi', 'warn', problems.join('; '), 'npx dsh-win32 fix')
   } else if (koffi.length === 0) add('koffi', 'pass', 'no koffi found in any profile')
   else add('koffi', 'pass', koffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', '))
 
@@ -337,16 +348,22 @@ function ensureBundle(profile = 'web') {
 }
 
 function fix() {
-  const broken = scanKoffi().filter(({ version }) => version === '3.1.3' || version === '3.1.4')
+  const broken = scanKoffi().filter(({ version, loadable }) => version === '3.1.3' || version === '3.1.4' || !loadable)
   if (broken.length === 0) {
-    ok('nothing to fix, no broken koffi prebuilt found in any profile')
+    ok('nothing to fix, every installed koffi version is supported and loads at runtime')
     return
   }
-  for (const { profile, version } of broken) {
-    console.log(`pinning koffi ${version} -> 3.1.2 in profile "${profile}"...`)
-    runDshPlugin(['--profile', profile, 'add', '-w', 'koffi@3.1.2', '--ignore-scripts'])
+  for (const { profile, version, loadable } of broken) {
+    console.log(`${loadable ? 'pinning' : 'repairing'} koffi ${version} -> 3.1.2 in profile "${profile}"...`)
+    runDshPlugin(['--profile', profile, 'add', '-w', 'koffi@3.1.2', '--ignore-scripts', '--force'])
   }
-  ok('koffi pinned; restart dsh web')
+  const remaining = scanKoffi().filter(({ version, loadable }) => version === '3.1.3' || version === '3.1.4' || !loadable)
+  if (remaining.length > 0) {
+    bad(`koffi still cannot load in ${remaining.map(({ profile }) => `"${profile}"`).join(', ')}`)
+    process.exitCode = 1
+  } else {
+    ok('koffi 3.1.2 installed and runtime load verified; restart dsh web')
+  }
 }
 
 /** setup rewrites on purpose: the user asked for this shell explicitly. */

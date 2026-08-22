@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "description": "Native Windows shell and Workspace Write sandbox presets for DeepSeek Harness. No WSL. One command.",
   "type": "module",
   "license": "MIT",
