@@ -60,7 +60,7 @@ dsh-win32 closes that gap with four pieces.
 1. **A Windows-aware subprocess runtime for the supported rc.6 host.** Same stock runtime, plus the then-missing win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). DSH rc.8 now has its own upstream inspector. The plugin does not claim compatibility with that newer line while its pinned node-pty version remains broken on this path.
 2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction. v0.4 adds `minimal-windows-sandboxed`, a variant on busybox-w32 ash that STAYS inside the `workspace-write` ACL sandbox (`npx dsh-win32 setup --sandboxed`, downloads busybox on consent). Measured on windows-latest CI, the first persistent shell that survives the restricted token.
 3. **Legacy-encoding reads, everywhere they can exist.** Stock DSH refuses GBK/UTF-16 files outright (`FS_NOT_TEXT`) and garbles GBK output of native tools in the foreground shell. Both presets mount a filesystem reader (`dsh-win32/fs-confined` since v0.11, which also fences editor writes by the session permission mode) that sniffs and decodes GBK/UTF-16 on file reads, and since v0.5 the runtime decodes foreground-shell collect output the same way. Writes stay UTF-8, so editing a legacy file converts it. Deliberate and documented. PTY output stays undecodable at the plugin layer (node-pty decodes first), and shipped shells default to UTF-8 so the presets are unaffected.
-4. **A doctor.** Diagnoses the traps the community found the hard way. broken koffi 3.1.3/3.1.4 prebuilts (install failures, folder-picker and session-save crashes), missing PowerShell 7 (the 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app, though a confined 5.1 starts fine on this CLI path), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
+4. **A doctor.** Diagnoses the traps the community found the hard way. It checks broken koffi 3.1.3/3.1.4 prebuilts and verifies that the installed package actually loads at runtime, then checks missing PowerShell 7 (the 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app, though a confined 5.1 starts fine on this CLI path), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
 
 ## Install
 
@@ -91,7 +91,7 @@ The preset appears in the picker immediately. The Git Bash preset requires [Git 
 
 The sandboxed variant (`minimal-windows-sandboxed`) only installs through `setup --sandboxed`, because it needs busybox-w32 and busybox is GPLv2. Downloading it silently during plugin activation would be both a licence and a consent problem. Wiring the bundle also needs pnpm, because `dsh plugin add` installs into the profile directory with it. `setup` enables pnpm through corepack when it is missing, and `doctor` reports it either way.
 
-Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can (pins the broken koffi prebuilt).
+Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can. For koffi it installs 3.1.2 without the lifecycle script, forces the optional platform package to relink, and verifies a real runtime load afterward.
 
 `doctor` also emits machine-readable results for CI and support use.
 

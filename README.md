@@ -60,7 +60,7 @@ Restart DSH Desktop after setup, then choose **Minimal (Windows, sandboxed)**.
 npx dsh-win32 doctor
 ```
 
-`doctor` lists known Windows setup traps and their safe fixes. Use `npx dsh-win32 fix` for fixes it can apply safely.
+`doctor` lists known Windows setup traps and their safe fixes. Its koffi check verifies both the installed version and a real runtime load, so a skipped install script cannot produce a false pass. Use `npx dsh-win32 fix` for fixes it can apply safely.
 
 ## Honest limits
 
