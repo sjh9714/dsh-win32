@@ -2,7 +2,10 @@
 
 [English storefront](../README.md) · [中文](../README.zh.md)
 
-**Get DSH working on Windows. Minimal mode, a persistent shell, and the sandbox, all of them.**
+**Add a persistent Git Bash or Workspace Write ash shell to DSH on Windows.**
+
+> [!IMPORTANT]
+> DSH rc.8 and later include a Windows process inspector and use persistent PowerShell in the stock Minimal preset. dsh-win32 is now an alternative-shell package, not the only way to run Minimal on Windows. Release 0.15.1 remains on DSH rc.6 because `@deepseek-ai/dsh-subprocess-local@0.1.1-rc.2` still pins the measured `node-pty@1.2.0-beta.15` Windows regression. Use stock Minimal on current DSH or follow [the upstream report](https://github.com/deepseek-ai/deepseek-harness/discussions/2851) before installing these custom PTY presets.
 
 [中文](../README.zh.md)
 
@@ -38,24 +41,23 @@ Want Git Bash instead of busybox? `npx dsh-win32 setup` installs the other prese
 
 Something not working? `npx dsh-win32 doctor` names each known trap.
 
-## What stock DSH cannot do here
+## What dsh-win32 adds
 
-| | Stock DSH on Windows | With dsh-win32 |
+| Capability | Current stock DSH on Windows | dsh-win32 0.15.1 on rc.6 |
 |---|---|---|
-| Persistent shell in the sandbox | impossible. MSYS dies under the restricted token | **works, on busybox ash. the only one we know of** |
-| Minimal preset | dead. every persistent-shell spawn throws on win32 | **works. real persistent Git Bash, state survives across tool calls** |
-| Foreground command | unresolvable from parent links | resolved from the ConPTY console list (~81ms) |
-| Editor writes under Read Only | unfenced. the bare `fs-local` reports no `sandboxMode`, so the editor builds no policy and can rewrite any absolute path | **fenced by the session mode, in both presets** (with one inherited Windows gap, see Honest limitations) |
-| Install traps | koffi segfault chain, PS 5.1 desktop crash reports, localhost 403, WSL bash confusion | one `doctor` command that names each trap and its fix |
-| Setup | find the npx command on GitHub every morning | `npx dsh-win32 setup`, then **double-click the desktop shortcut** |
+| Minimal shell | persistent PowerShell on rc.8 and later | persistent Git Bash in full access, or busybox ash in Workspace Write |
+| Git Bash in Workspace Write | MSYS dies under the restricted token | not attempted. the sandboxed preset uses native busybox ash instead |
+| Legacy-encoded reads | no documented GBK or UTF-16 fallback | GBK and UTF-16 file reads, plus decoded foreground collect output |
+| Windows diagnosis | standard host errors and logs | one `doctor` command for the measured Windows traps |
+| Custom preset setup | manual profile and preset work | `npx dsh-win32 setup`, then a desktop shortcut |
 
 ## Why this exists
 
-The community keeps reporting that DeepSeek models do their best work in DSH's Minimal preset. On Windows that preset does not run at all. Its persistent bash needs a PTY, and the stock subprocess runtime resolves a platform process inspector that throws on win32 before node-pty is even reached. Every Windows user has been locked out of the mode the model is best aligned with.
+The project began when DSH rc.7 and earlier could not construct the stock Minimal PTY on Windows. DSH rc.8 closed that core gap with a Windows process inspector and a PowerShell composition. The remaining product is narrower. It offers Git Bash for users who want a Unix-like shell, busybox ash for the Workspace Write lane where MSYS cannot start, legacy-encoding reads, and a doctor for recurring Windows setup failures.
 
 dsh-win32 closes that gap with four pieces.
 
-1. **A Windows-aware subprocess runtime.** Same stock runtime, plus the missing piece, a win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). Swapped in by bundle patch on win32 only. Other platforms keep the stock row untouched.
+1. **A Windows-aware subprocess runtime for the supported rc.6 host.** Same stock runtime, plus the then-missing win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). DSH rc.8 now has its own upstream inspector. The plugin does not claim compatibility with that newer line while its pinned node-pty version remains broken on this path.
 2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction. v0.4 adds `minimal-windows-sandboxed`, a variant on busybox-w32 ash that STAYS inside the `workspace-write` ACL sandbox (`npx dsh-win32 setup --sandboxed`, downloads busybox on consent). Measured on windows-latest CI, the first persistent shell that survives the restricted token.
 3. **Legacy-encoding reads, everywhere they can exist.** Stock DSH refuses GBK/UTF-16 files outright (`FS_NOT_TEXT`) and garbles GBK output of native tools in the foreground shell. Both presets mount a filesystem reader (`dsh-win32/fs-confined` since v0.11, which also fences editor writes by the session permission mode) that sniffs and decodes GBK/UTF-16 on file reads, and since v0.5 the runtime decodes foreground-shell collect output the same way. Writes stay UTF-8, so editing a legacy file converts it. Deliberate and documented. PTY output stays undecodable at the plugin layer (node-pty decodes first), and shipped shells default to UTF-8 so the presets are unaffected.
 4. **A doctor.** Diagnoses the traps the community found the hard way. broken koffi 3.1.3/3.1.4 prebuilts (install failures, folder-picker and session-save crashes), missing PowerShell 7 (the 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app, though a confined 5.1 starts fine on this CLI path), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
