@@ -23,13 +23,13 @@
 
 A real screenshot. At `Workspace Write`, the agent runs the tests to see them fail, reads the source to find the bug, fixes it, and runs again for `all tests passed`.
 
-## Three steps
+## Legacy preset path
 
 ```powershell
-npx dsh-win32 setup --sandboxed
+npx dsh-win32 setup --legacy --sandboxed
 ```
 
-The Git Bash preset requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). The sandboxed preset uses busybox ash and does not require Git Bash.
+This explicit legacy command installs the busybox ash preset for an rc.6-era DSH profile. It does not replace the stock Minimal preset on current DSH. The Git Bash legacy preset requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). The sandboxed preset does not require Git Bash.
 
 Setup leaves a **"DeepSeek Harness"** shortcut on your desktop, so starting it is a **double-click** rather than a command you look up every morning (pass `--no-shortcut` if you would rather not have one). It opens a console; use the **exact** url that console prints. `npx @deepseek-ai/dsh web` still works.
 
@@ -39,19 +39,19 @@ Once it is up.
 2. Pick **Minimal (Windows, sandboxed)** in the preset picker
 3. Leave the permission badge on **Workspace Write**
 
-Want Git Bash instead of busybox? `npx dsh-win32 setup` installs the other preset. Pick **Minimal (Windows)** and switch the badge to `danger-full-access`. The difference between the two is the first item below.
+Want Git Bash instead of busybox? `npx dsh-win32 setup --legacy` installs the other preset. Pick **Minimal (Windows)** and switch the badge to `danger-full-access`. The difference between the two is the first item below.
 
 Something not working? `npx dsh-win32 doctor` names each known trap.
 
 ## What dsh-win32 adds
 
-| Capability | Current stock DSH on Windows | dsh-win32 0.15.1 on rc.6 |
+| Capability | Current stock DSH on Windows | dsh-win32 0.16.0 legacy mode on rc.6 |
 |---|---|---|
 | Minimal shell | persistent PowerShell on rc.8 and later | persistent Git Bash in full access, or busybox ash in Workspace Write |
 | Git Bash in Workspace Write | MSYS dies under the restricted token | not attempted. the sandboxed preset uses native busybox ash instead |
 | Legacy-encoded reads | no documented GBK or UTF-16 fallback | GBK and UTF-16 file reads, plus decoded foreground collect output |
 | Windows diagnosis | standard host errors and logs | one `doctor` command for the measured Windows traps |
-| Custom preset setup | manual profile and preset work | `npx dsh-win32 setup`, then a desktop shortcut |
+| Custom preset setup | not needed for stock Minimal | `npx dsh-win32 setup --legacy`, then a desktop shortcut |
 
 ## Why this exists
 
@@ -60,38 +60,46 @@ The project began when DSH rc.7 and earlier could not construct the stock Minima
 dsh-win32 closes that gap with four pieces.
 
 1. **A Windows-aware subprocess runtime for the supported rc.6 host.** Same stock runtime, plus the then-missing win32 ProcessInspector (process trees and identity via CIM, signalling via taskkill). DSH rc.8 now has its own upstream inspector. The plugin does not claim compatibility with that newer line while its pinned node-pty version remains broken on this path.
-2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction. v0.4 adds `minimal-windows-sandboxed`, a variant on busybox-w32 ash that STAYS inside the `workspace-write` ACL sandbox (`npx dsh-win32 setup --sandboxed`, downloads busybox on consent). Measured on windows-latest CI, the first persistent shell that survives the restricted token.
+2. **The `minimal-windows` agent preset.** A faithful copy of the official Minimal composition with one change, the PTY shell is your Git Bash. Same complete persona, same two tools, no compaction. v0.4 adds `minimal-windows-sandboxed`, a variant on busybox-w32 ash that STAYS inside the `workspace-write` ACL sandbox (`npx dsh-win32 setup --legacy --sandboxed`, downloads busybox on consent). Measured on windows-latest CI, the first persistent shell that survives the restricted token.
 3. **Legacy-encoding reads, everywhere they can exist.** Stock DSH refuses GBK/UTF-16 files outright (`FS_NOT_TEXT`) and garbles GBK output of native tools in the foreground shell. Both presets mount a filesystem reader (`dsh-win32/fs-confined` since v0.11, which also fences editor writes by the session permission mode) that sniffs and decodes GBK/UTF-16 on file reads, and since v0.5 the runtime decodes foreground-shell collect output the same way. Writes stay UTF-8, so editing a legacy file converts it. Deliberate and documented. PTY output stays undecodable at the plugin layer (node-pty decodes first), and shipped shells default to UTF-8 so the presets are unaffected.
 4. **A doctor.** Diagnoses the traps the community found the hard way. It checks broken koffi 3.1.3/3.1.4 prebuilts and verifies that the installed package actually loads at runtime, then checks missing PowerShell 7 (the 5.1 fallback is reported to crash with 0xC0000142 in the packaged desktop app, though a confined 5.1 starts fine on this CLI path), the localhost vs 127.0.0.1 origin 403, and the WSL bash.exe imposter in System32.
 
-## Install
+## Current DSH setup
 
 One line, in PowerShell.
 
-The ecosystem-convention one-liner. Activating the plugin installs the preset into `$DSH_HOME/.agent-presets/`, and never overwrites one that is already there.
-
-```sh
-dsh plugin --profile web add dsh-win32
+```powershell
+npx dsh-win32 setup
 ```
 
-Or let a script do the wiring, in PowerShell.
+This checks the official persistent PowerShell and Workspace Write stack, applies only measured repairs, and creates a desktop shortcut. It does not install a custom preset or wire the legacy runtime bundle.
+
+The PowerShell installer performs the same current-path setup.
 
 ```powershell
 irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
 ```
 
-That wires the runtime bundle into your web profile, installs the preset, creates a desktop shortcut, and prints a health report. Prefer npx? Same thing.
+## Legacy install
+
+Activating the plugin directly installs the old custom preset into `$DSH_HOME/.agent-presets/`. Use this only for an rc.6-era profile that cannot move to current DSH.
 
 ```sh
-npx dsh-win32 setup              # bundle + preset + health report
-npx dsh-win32 setup --no-shortcut  # same, without the desktop shortcut
+dsh plugin --profile web add dsh-win32
+```
+
+The explicit npx path wires the runtime bundle, installs the preset, creates a desktop shortcut, and prints a health report.
+
+```sh
+npx dsh-win32 setup --legacy                # bundle + preset + health report
+npx dsh-win32 setup --legacy --no-shortcut  # same, without the desktop shortcut
 ```
 
 ![the preset picker](../assets/shot-preset-picker.png)
 
 The preset appears in the picker immediately. The Git Bash preset requires [Git for Windows](https://git-scm.com) (`winget install Git.Git`). The sandboxed preset uses busybox ash and does not require Git Bash.
 
-The sandboxed variant (`minimal-windows-sandboxed`) only installs through `setup --sandboxed`, because it needs busybox-w32 and busybox is GPLv2. Downloading it silently during plugin activation would be both a licence and a consent problem. Wiring the bundle also needs pnpm, because `dsh plugin add` installs into the profile directory with it. `setup` enables pnpm through corepack when it is missing, and `doctor` reports it either way.
+The sandboxed variant (`minimal-windows-sandboxed`) only installs through `setup --legacy --sandboxed`, because it needs busybox-w32 and busybox is GPLv2. Downloading it silently during plugin activation would be both a licence and a consent problem. Wiring the bundle also needs pnpm, because `dsh plugin add` installs into the profile directory with it. Legacy setup enables pnpm through corepack when it is missing, and `doctor --legacy` reports it either way.
 
 Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can. For koffi it installs 3.1.2 without the lifecycle script, forces the optional platform package to relink, and verifies a real runtime load afterward.
 
@@ -123,7 +131,7 @@ Use `usr/bin/bash.exe` rather than `bin/bash.exe`. The latter is a 47KB wrapper 
 
 ## China network note · 中国网络提示
 
-`irm raw.githubusercontent.com...` 和 busybox 的 `frippery.org` 在部分网络环境下可能无法直连。替代路径：安装用 `npx dsh-win32 setup`（npm 源可换 npmmirror），busybox 手动下载后用 `npx dsh-win32 setup --sandboxed --busybox <路径>` 指定。
+`irm raw.githubusercontent.com...` 和 busybox 的 `frippery.org` 在部分网络环境下可能无法直连。当前 DSH 检查可用 `npx dsh-win32 setup`（npm 源可换 npmmirror）。旧版 busybox 预设需要 `npx dsh-win32 setup --legacy --sandboxed --busybox <路径>`。
 
 ## Receipts
 
