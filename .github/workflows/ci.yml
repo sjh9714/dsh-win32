@@ -158,8 +158,8 @@ jobs:
         timeout-minutes: 6
         shell: bash
         run: SMOKE_BASH="$PWD/busybox64.exe" SMOKE_SHELL_ARGS="sh,-i" SANDBOX_MODE=workspace-write node scripts/sandbox-smoke.mjs
-      - name: setup --sandboxed installs the busybox preset
+      - name: legacy setup --sandboxed installs the busybox preset
         shell: bash
         run: |
-          node bin/cli.mjs setup --no-bundle --sandboxed --busybox "$PWD/busybox64.exe"
+          node bin/cli.mjs setup --legacy --no-bundle --sandboxed --busybox "$PWD/busybox64.exe"
           grep -q 'busybox64.exe' "$USERPROFILE/.dsh/.agent-presets/minimal-windows-sandboxed/agent.cordis.yml"
