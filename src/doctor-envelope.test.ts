@@ -18,6 +18,14 @@ const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, '..', 'bin', 'cli.mjs')
 const SIM = join(here, '..', 'scripts', 'win32-sim.mjs')
 const STATUSES = ['pass', 'warn', 'fail', 'skip']
+const DSH_META = JSON.stringify({
+  version: '0.1.1-rc.2',
+  dependencies: {
+    '@deepseek-ai/dsh-tool-pwsh-persistent': '^0.1.1-rc.2',
+    '@deepseek-ai/dsh-pwsh-local': '^0.1.1-rc.2',
+    '@deepseek-ai/dsh-pwsh-sandbox': '^0.1.1-rc.2',
+  },
+})
 // Every case here spawns a real node process, and doctor now shells out to
 // `where.exe` and walks the profile directory. A Windows runner took 7.2s for
 // the first spawn, so the 5s default made this a coin flip rather than a test.
@@ -25,7 +33,7 @@ const SPAWN_TIMEOUT = 30_000
 
 /** Run the CLI as a subprocess; `entry` selects the real CLI or the win32 sim. */
 function runDoctor(env: Record<string, string> = {}, entry = CLI): { envelope: any, exitCode: number } {
-  const options = { encoding: 'utf8' as const, env: { ...process.env, ...env } }
+  const options = { encoding: 'utf8' as const, env: { ...process.env, DSH_WINDOWS_DSH_META: DSH_META, ...env } }
   const extra = env.DOCTOR_EXTRA_ARGS === undefined ? [] : env.DOCTOR_EXTRA_ARGS.split(' ')
   const args = entry === CLI ? [entry, 'doctor', '--json', ...extra] : [entry]
   try {
@@ -52,7 +60,7 @@ describe('git_bash wrapper detection', () => {
   }
 
   const statusFor = (bash: string) => {
-    const { envelope } = runDoctor({ CLI_ARGS: 'doctor --json', DSH_WINDOWS_BASH: bash, DSH_HOME: join(fixtures, 'home') }, SIM)
+    const { envelope } = runDoctor({ CLI_ARGS: 'doctor --json --legacy', DSH_WINDOWS_BASH: bash, DSH_HOME: join(fixtures, 'home') }, SIM)
     return envelope.checks.find((c: any) => c.name === 'git_bash').status
   }
 
@@ -121,22 +129,32 @@ describe('dsh-doctor/v1 envelope', () => {
     expect(bundle.detail).toBeTruthy()
   }, SPAWN_TIMEOUT)
 
-  it('skips the bundle check, with a reason, when no profile is wired', () => {
+  it('passes the bundle check when the current DSH profile has no legacy bundle', () => {
     const { envelope } = runDoctor({ DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-doctor-empty-')) })
     const bundle = envelope.checks.find((c: any) => c.name === 'dsh-win32/bundle')
-    expect(bundle.status).toBe('skip')
-    expect(bundle.detail).toMatch(/nothing to compare/i)
+    expect(bundle.status).toBe('pass')
+    expect(bundle.detail).toMatch(/correct for current DSH/i)
+  }, SPAWN_TIMEOUT)
+
+  it('confirms the official persistent PowerShell and Workspace Write packages', () => {
+    const { envelope } = runDoctor({ CLI_ARGS: 'doctor --json', DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-doctor-current-')) }, SIM)
+    const byName = Object.fromEntries(envelope.checks.map((c: any) => [c.name, c]))
+    expect(byName.dsh_current.status).toBe('pass')
+    expect(byName.persistent_powershell.status).toBe('pass')
+    expect(byName.workspace_write.status).toBe('pass')
+    expect(byName.git_bash.status).toBe('skip')
   }, SPAWN_TIMEOUT)
 
   // #13: a clean box has node and Git but no pnpm, and the bundle wiring dies
   // on it with a bare "'pnpm' is not recognized". The check is platform-
   // agnostic, so it must report a real status everywhere rather than joining
   // the win32 skip list whose count the CI envelope gate asserts on.
-  it('reports pnpm on every platform, never as a skip', () => {
+  it('skips pnpm in current mode because no bundle is installed', () => {
     const { envelope } = runDoctor()
     const pnpm = envelope.checks.find((c: any) => c.name === 'pnpm')
     expect(pnpm).toBeDefined()
-    expect(['pass', 'warn']).toContain(pnpm.status)
+    expect(pnpm.status).toBe('skip')
+    expect(pnpm.detail).toMatch(/does not install a bundle/)
   }, SPAWN_TIMEOUT)
 })
 

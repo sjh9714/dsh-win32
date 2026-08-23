@@ -1,6 +1,6 @@
 # dsh-win32 one-line installer for Windows.
 #   irm https://raw.githubusercontent.com/sjh9714/dsh-win32/master/install.ps1 | iex
-# Checks Node, then runs the setup (bundle + preset + desktop shortcut + doctor).
+# Checks Node, then runs the current DSH doctor and desktop shortcut setup.
 $ErrorActionPreference = 'Stop'
 
 $node = Get-Command node -ErrorAction SilentlyContinue
@@ -17,7 +17,7 @@ if ([int]$parts[0] -lt 22 -or ([int]$parts[0] -eq 22 -and [int]$parts[1] -lt 19)
   exit 1
 }
 
-Write-Host 'Running dsh-win32 setup (bundle + preset + shortcut)...'
+Write-Host 'Running dsh-win32 setup (official DSH checks + shortcut)...'
 npx --yes dsh-win32@latest setup
 if ($LASTEXITCODE -ne 0) {
   Write-Host ''

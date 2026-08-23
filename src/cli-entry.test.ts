@@ -25,6 +25,14 @@ import { describe, expect, it } from 'vitest'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const CLI = join(here, '..', 'bin', 'cli.mjs')
+const DSH_META = JSON.stringify({
+  version: '0.1.1-rc.2',
+  dependencies: {
+    '@deepseek-ai/dsh-tool-pwsh-persistent': '^0.1.1-rc.2',
+    '@deepseek-ai/dsh-pwsh-local': '^0.1.1-rc.2',
+    '@deepseek-ai/dsh-pwsh-sandbox': '^0.1.1-rc.2',
+  },
+})
 
 /**
  * Run `doctor` and return stdout, ignoring the exit code on purpose. `doctor`
@@ -35,7 +43,7 @@ const CLI = join(here, '..', 'bin', 'cli.mjs')
 function runDoctor(entry: string): string {
   const run = spawnSync(process.execPath, [entry, 'doctor'], {
     encoding: 'utf8',
-    env: { ...process.env, DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-win32-home-')) },
+    env: { ...process.env, DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-win32-home-')), DSH_WINDOWS_DSH_META: DSH_META },
   })
   return run.stdout ?? ''
 }

@@ -1,5 +1,7 @@
 # Windows details
 
+> Current DSH includes official persistent PowerShell and a Windows ACL sandbox. The shell, preset, filesystem, and busybox sections below document the explicit `--legacy` path and the evidence behind earlier releases. The default `npx dsh-win32 setup` no longer installs those components.
+
 [English storefront](../README.md) · [中文](../README.zh.md)
 
 **Add a persistent Git Bash or Workspace Write ash shell to DSH on Windows.**

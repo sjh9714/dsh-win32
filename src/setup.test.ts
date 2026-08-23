@@ -11,12 +11,22 @@ const SIM = join(here, '..', 'scripts', 'win32-sim.mjs')
 const CLI = join(here, '..', 'bin', 'cli.mjs')
 const SPAWN_TIMEOUT = 30_000
 
-function runSetup({ sandboxed, bash }: { sandboxed: boolean, bash?: string }) {
+const DSH_META = JSON.stringify({
+  version: '0.1.1-rc.2',
+  dependencies: {
+    '@deepseek-ai/dsh-tool-pwsh-persistent': '^0.1.1-rc.2',
+    '@deepseek-ai/dsh-pwsh-local': '^0.1.1-rc.2',
+    '@deepseek-ai/dsh-pwsh-sandbox': '^0.1.1-rc.2',
+  },
+})
+
+function runSetup({ sandboxed, bash, legacy = true, meta = DSH_META }: { sandboxed: boolean, bash?: string, legacy?: boolean, meta?: string }) {
   const home = mkdtempSync(join(tmpdir(), 'dsh-win32-setup-home-'))
   const fixtures = mkdtempSync(join(tmpdir(), 'dsh-win32-setup-fixtures-'))
   const busybox = join(fixtures, 'busybox64.exe')
   writeFileSync(busybox, '')
   const args = ['setup', '--no-bundle', '--no-shortcut']
+  if (legacy) args.push('--legacy')
   if (sandboxed) args.push('--sandboxed', '--busybox', busybox)
   const run = spawnSync(process.execPath, [SIM], {
     encoding: 'utf8',
@@ -26,6 +36,7 @@ function runSetup({ sandboxed, bash }: { sandboxed: boolean, bash?: string }) {
       DSH_HOME: home,
       DSH_WINDOWS_TEST_ROOT: fixtures,
       DSH_WINDOWS_BASH: bash ?? join(fixtures, 'missing-bash.exe'),
+      DSH_WINDOWS_DSH_META: meta,
     },
     timeout: SPAWN_TIMEOUT,
   })
@@ -33,6 +44,27 @@ function runSetup({ sandboxed, bash }: { sandboxed: boolean, bash?: string }) {
 }
 
 describe('setup on Windows', () => {
+  it('uses the official DSH stack by default and installs no legacy preset', () => {
+    const { home, run } = runSetup({ sandboxed: true, legacy: false })
+
+    expect(run.status).toBe(0)
+    expect(run.stdout).toContain('current DSH already includes persistent PowerShell')
+    expect(run.stdout).toContain('--sandboxed is no longer needed')
+    expect(existsSync(join(home, '.agent-presets'))).toBe(false)
+  }, SPAWN_TIMEOUT)
+
+  it('stops current setup when the official Windows stack cannot be verified', () => {
+    const { home, run } = runSetup({
+      sandboxed: false,
+      legacy: false,
+      meta: JSON.stringify({ version: '0.1.0-rc.6', dependencies: {} }),
+    })
+
+    expect(run.status).toBe(1)
+    expect(run.stderr).toContain('does not expose the complete official Windows stack')
+    expect(existsSync(join(home, '.agent-presets'))).toBe(false)
+  }, SPAWN_TIMEOUT)
+
   it('installs only the sandboxed preset without Git Bash', () => {
     const { home, run } = runSetup({ sandboxed: true })
 
@@ -77,13 +109,14 @@ describe('setup on Windows', () => {
     chmodSync(npx, 0o755)
     writeFileSync(join(bin, 'npx.cmd'), '@echo off\r\n:args\r\nif "%~1"=="" goto done\r\n>>"%DSH_NPX_ARGS%" echo %~1\r\nshift\r\ngoto args\r\n:done\r\n')
 
-    const run = spawnSync(process.execPath, [CLI, 'setup', '--no-shortcut', '--profile', 'desktop', '--sandboxed', '--busybox', busybox, '--bash', bash], {
+    const run = spawnSync(process.execPath, [CLI, 'setup', '--legacy', '--no-shortcut', '--profile', 'desktop', '--sandboxed', '--busybox', busybox, '--bash', bash], {
       encoding: 'utf8',
       env: {
         ...process.env,
         DSH_HOME: home,
         DSH_NPX_ARGS: npxArgs,
         PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+        DSH_WINDOWS_DSH_META: DSH_META,
       },
       timeout: SPAWN_TIMEOUT,
     })
@@ -101,9 +134,9 @@ describe('setup on Windows', () => {
     writeFileSync(bash, '')
     writeFileSync(busybox, '')
 
-    const run = spawnSync(process.execPath, [CLI, 'setup', '--no-bundle', '--no-shortcut', '--profile', 'desktop&calc', '--sandboxed', '--busybox', busybox, '--bash', bash], {
+    const run = spawnSync(process.execPath, [CLI, 'setup', '--legacy', '--no-bundle', '--no-shortcut', '--profile', 'desktop&calc', '--sandboxed', '--busybox', busybox, '--bash', bash], {
       encoding: 'utf8',
-      env: { ...process.env, DSH_HOME: home },
+      env: { ...process.env, DSH_HOME: home, DSH_WINDOWS_DSH_META: DSH_META },
       timeout: SPAWN_TIMEOUT,
     })
 
