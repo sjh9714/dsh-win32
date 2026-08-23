@@ -60,7 +60,7 @@ jobs:
             }
             const win = process.platform === 'win32'
             const names = e.checks.map(c => c.name)
-            for (const n of ['node','git_bash','powershell','koffi','sandbox_shell']) {
+            for (const n of ['node','dsh_current','git_bash','powershell','koffi','persistent_powershell','workspace_write','sandbox_shell']) {
               if (!names.includes(n)) throw new Error('missing vocabulary name ' + n)
             }
             // Assert the platform rule about skipping, not the exact set.
@@ -69,25 +69,26 @@ jobs:
             // which is the case in CI), so an exact-set assertion breaks every
             // time an unrelated check gains a skip cell.
             const skipped = new Set(e.checks.filter(c => c.status === 'skip').map(c => c.name))
-            const winOnly = ['git_bash','koffi','powershell','sandbox_shell','write_fence']
+            const winOnly = ['git_bash','koffi','powershell','persistent_powershell','workspace_write','sandbox_shell','write_fence']
             const missing = winOnly.filter(n => !skipped.has(n))
             if (!win && missing.length > 0) {
               throw new Error('non-win32 must skip every win32-only check, did not skip ' + missing)
             }
-            // On win32 the platform checks all apply. write_fence is the one
-            // exception: it has nothing to inspect until the sandboxed preset
-            // is installed, and this job does not install it.
-            const wrongly = winOnly.filter(n => n !== 'write_fence' && skipped.has(n))
+            // Current DSH uses PowerShell, so Git Bash and the legacy preset
+            // write-fence check are intentionally skipped even on Windows.
+            const currentOnly = ['koffi','powershell','persistent_powershell','workspace_write','sandbox_shell']
+            const wrongly = currentOnly.filter(n => skipped.has(n))
             if (win && wrongly.length > 0) {
               throw new Error('win32 must not skip its own platform checks, skipped ' + wrongly)
             }
             console.log('envelope ok, exit', e.exitCode, JSON.stringify(e.summary))
           "
           if [ "$RUNNER_OS" = "Windows" ]; then
-            node bin/cli.mjs setup --no-bundle
+            node bin/cli.mjs setup --no-shortcut | grep -q 'current DSH already includes persistent PowerShell'
+            node bin/cli.mjs setup --legacy --no-bundle --no-shortcut
             grep -q 'bash.exe' "$USERPROFILE/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
           else
-            node bin/cli.mjs setup --bash /bin/bash --no-bundle
+            node bin/cli.mjs setup --legacy --bash /bin/bash --no-bundle --no-shortcut
             grep -q "shellPath: '/bin/bash'" "$HOME/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
           fi
 
@@ -157,8 +158,8 @@ jobs:
         timeout-minutes: 6
         shell: bash
         run: SMOKE_BASH="$PWD/busybox64.exe" SMOKE_SHELL_ARGS="sh,-i" SANDBOX_MODE=workspace-write node scripts/sandbox-smoke.mjs
-      - name: setup --sandboxed installs the busybox preset
+      - name: legacy setup --sandboxed installs the busybox preset
         shell: bash
         run: |
-          node bin/cli.mjs setup --no-bundle --sandboxed --busybox "$PWD/busybox64.exe"
+          node bin/cli.mjs setup --legacy --no-bundle --sandboxed --busybox "$PWD/busybox64.exe"
           grep -q 'busybox64.exe' "$USERPROFILE/.dsh/.agent-presets/minimal-windows-sandboxed/agent.cordis.yml"

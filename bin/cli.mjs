@@ -57,6 +57,38 @@ function findPnpm() {
   return first !== undefined && first !== '' ? first : undefined
 }
 
+const OFFICIAL_WINDOWS_DEPS = [
+  '@deepseek-ai/dsh-tool-pwsh-persistent',
+  '@deepseek-ai/dsh-pwsh-local',
+  '@deepseek-ai/dsh-pwsh-sandbox',
+]
+
+function dshReleaseMeta() {
+  if (process.env.DSH_WINDOWS_DSH_META !== undefined) {
+    try {
+      return JSON.parse(process.env.DSH_WINDOWS_DSH_META)
+    } catch {
+      return undefined
+    }
+  }
+  try {
+    const output = execFileSync(WIN ? 'npm.cmd' : 'npm', ['view', '@deepseek-ai/dsh', 'version', 'dependencies', '--json'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      shell: WIN,
+      timeout: 15_000,
+    })
+    return JSON.parse(output)
+  } catch {
+    return undefined
+  }
+}
+
+function hasOfficialWindowsStack(meta) {
+  return OFFICIAL_WINDOWS_DEPS.every((name) => typeof meta?.dependencies?.[name] === 'string')
+}
+
 /** node ships corepack, so a missing pnpm is recoverable without a download. */
 function enablePnpmViaCorepack() {
   try {
@@ -113,7 +145,7 @@ const NOT_WINDOWS = 'win32 only, not applicable on this platform'
  * poison the run (fail). `skip` carries a mandatory reason and counts as
  * neither pass nor fail.
  */
-function collectChecks() {
+function collectChecks({ legacy = false, profile = 'web' } = {}) {
   const checks = []
   // `fix` is the instruction on its own, separate from the description. The
   // dsh-doctor v1.1 addendum aggregates these into `remediation`, and it
@@ -133,7 +165,8 @@ function collectChecks() {
   else add('node', 'warn', `node ${process.versions.node} is outside DSH's declared range ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
 
   const pnpm = findPnpm()
-  if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
+  if (!legacy) add('pnpm', 'skip', 'current DSH setup does not install a bundle or custom preset')
+  else if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
   else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it', 'npx dsh-win32 setup enables it through corepack, or: npm install -g pnpm')
 
   // Still vendor-prefixed because `installed_bundle` is only nominated for
@@ -146,9 +179,13 @@ function collectChecks() {
   // sync" from nothing, which is the same trap that put `skip` in r5 for
   // `git_bash` on Linux. The "go install it" nudge is a product concern and
   // lives in the tip lines below, not in a shared vocabulary name.
-  const wiredBundle = bundleVersion()
-  if (wiredBundle === undefined) {
-    add('dsh-win32/bundle', 'skip', 'no bundle listed in the profile manifest, so there is nothing to compare the CLI against')
+  const wiredBundle = bundleVersion(profile)
+  if (!legacy && wiredBundle === undefined) {
+    add('dsh-win32/bundle', 'pass', 'not wired into the profile, which is correct for current DSH')
+  } else if (!legacy) {
+    add('dsh-win32/bundle', 'warn', `legacy bundle ${wiredBundle} is still wired into profile "${profile}"`, `npx @deepseek-ai/dsh plugin --profile ${profile} remove dsh-win32`)
+  } else if (wiredBundle === undefined) {
+    add('dsh-win32/bundle', 'skip', 'no legacy bundle listed in the profile manifest, so there is nothing to compare the CLI against')
   } else if (wiredBundle === SELF_VERSION) {
     add('dsh-win32/bundle', 'pass', wiredBundle)
   } else if (wiredBundle === 'wired, not installed') {
@@ -165,10 +202,50 @@ function collectChecks() {
     add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}`, 'npx dsh-win32 setup. If that reports no change, the profile\'s pnpm minimumReleaseAgeExclude gate is holding the new version, so retry the next day')
   }
 
+  const release = dshReleaseMeta()
+  const official = hasOfficialWindowsStack(release)
+  if (release === undefined) {
+    add('dsh_current', 'warn', 'could not read the current @deepseek-ai/dsh release metadata', 'check the network and re-run npx dsh-win32 doctor')
+  } else if (official) {
+    add('dsh_current', 'pass', `@deepseek-ai/dsh ${release.version} includes the official Windows stack`)
+  } else {
+    add('dsh_current', 'warn', `@deepseek-ai/dsh ${release.version ?? 'unknown'} does not declare the complete official Windows stack`, 'update @deepseek-ai/dsh or use npx dsh-win32 setup --legacy for an rc.6-era installation')
+  }
+
   const gitBash = WIN ? findGitBash() : undefined
   if (!WIN) {
-    for (const name of ['git_bash', 'powershell', 'koffi', 'sandbox_shell', 'write_fence']) add(name, 'skip', NOT_WINDOWS)
-    return { checks, gitBash }
+    for (const name of ['git_bash', 'powershell', 'koffi', 'persistent_powershell', 'workspace_write', 'sandbox_shell', 'write_fence']) add(name, 'skip', NOT_WINDOWS)
+    return { checks, gitBash, official }
+  }
+
+  if (!legacy) {
+    add('git_bash', 'skip', 'current DSH uses official PowerShell on Windows; Git Bash is needed only by dsh-win32 --legacy')
+
+    const pwsh7 = findPwsh7()
+    if (pwsh7 !== undefined) add('powershell', 'pass', pwsh7)
+    else add('powershell', 'warn', 'PowerShell 7 not found. Current DSH can fall back to Windows PowerShell, but PowerShell 7 is the supported path', 'install PowerShell 7 from https://learn.microsoft.com/powershell')
+
+    const koffi = scanKoffi()
+    const brokenKoffi = koffi.filter(({ version }) => version === '3.1.3' || version === '3.1.4')
+    const unloadableKoffi = koffi.filter(({ loadable }) => !loadable)
+    if (brokenKoffi.length > 0 || unloadableKoffi.length > 0) {
+      const where = [...brokenKoffi, ...unloadableKoffi]
+        .map(({ profile: name, version }) => `${version} in "${name}"`).join(', ')
+      add('koffi', 'warn', `koffi runtime load failed or has a broken Windows prebuilt (${where})`, 'npx dsh-win32 fix')
+    } else if (koffi.length === 0) add('koffi', 'pass', 'no koffi found in any profile')
+    else add('koffi', 'pass', koffi.map(({ profile: name, version }) => `${version} in "${name}"`).join(', '))
+
+    if (official) {
+      add('persistent_powershell', 'pass', `${release.dependencies['@deepseek-ai/dsh-tool-pwsh-persistent']} is included by @deepseek-ai/dsh ${release.version}`)
+      add('workspace_write', 'pass', `${release.dependencies['@deepseek-ai/dsh-pwsh-sandbox']} provides the Windows ACL sandbox`)
+      add('sandbox_shell', 'pass', 'the official persistent PowerShell stack is available inside Workspace Write')
+    } else {
+      add('persistent_powershell', 'warn', 'the current DSH release metadata does not confirm the official persistent PowerShell tool', 'update @deepseek-ai/dsh')
+      add('workspace_write', 'warn', 'the current DSH release metadata does not confirm the official Windows ACL sandbox', 'update @deepseek-ai/dsh')
+      add('sandbox_shell', 'warn', 'the official Workspace Write shell could not be confirmed', 'update @deepseek-ai/dsh')
+    }
+    add('write_fence', 'skip', 'the legacy preset fence check does not apply to the official DSH preset')
+    return { checks, gitBash, official }
   }
 
   if (gitBash === undefined) add('git_bash', 'fail', 'Git Bash not found', 'install from https://git-scm.com (winget install Git.Git), then re-run')
@@ -196,6 +273,9 @@ function collectChecks() {
   } else if (koffi.length === 0) add('koffi', 'pass', 'no koffi found in any profile')
   else add('koffi', 'pass', koffi.map(({ profile, version }) => `${version} in "${profile}"`).join(', '))
 
+  add('persistent_powershell', 'skip', 'legacy mode uses the dsh-win32 Git Bash or busybox preset')
+  add('workspace_write', 'skip', 'legacy mode reports its sandbox through sandbox_shell and write_fence')
+
   // MSYS bash dies under the workspace-write restricted token, so without the
   // busybox variant a sandboxed session has no working shell at all (#6).
   if (existsSync(join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed'))) {
@@ -221,7 +301,7 @@ function collectChecks() {
     add('write_fence', 'warn', `${unfenced.map(({ name }) => name).join(', ')} predates the write fence, so str_replace_editor can write outside the workspace under Read Only`, 'npx dsh-win32 setup')
   }
 
-  return { checks, gitBash }
+  return { checks, gitBash, official }
 }
 
 const RENDER = { pass: ok, warn, fail: bad, skip: message => console.log(`  skip  ${message}`) }
@@ -250,15 +330,15 @@ function remediationLines(checks) {
     .map(({ name, detail, fix }) => `[${name}] ${fix ?? detail}`)
 }
 
-function doctor({ json = false, remediation = false } = {}) {
-  const { checks, gitBash } = collectChecks()
+function doctor({ json = false, remediation = false, legacy = false, profile = 'web' } = {}) {
+  const { checks, gitBash, official } = collectChecks({ legacy, profile })
   const { summary, exitCode } = summarize(checks)
 
   if (json) {
     console.log(JSON.stringify({
       schema: 'dsh-doctor/v1',
       generatedAt: new Date().toISOString(),
-      profile: null,
+      profile,
       exitCode,
       summary,
       ok: summary.fail === 0,
@@ -266,19 +346,20 @@ function doctor({ json = false, remediation = false } = {}) {
       // Opt-in only. A frozen r5 consumer must never see this field.
       ...(remediation ? { remediation: remediationLines(checks) } : {}),
     }, null, 2))
-    return { gitBash, exitCode }
+    return { gitBash, official, exitCode }
   }
 
-  console.log(`dsh-win32 doctor (platform: ${process.platform})`)
+  console.log(`dsh-win32 doctor (platform: ${process.platform}, mode: ${legacy ? 'legacy' : 'current DSH'})`)
   for (const { name, status, detail, fix } of checks) {
     RENDER[status](fix === undefined ? `${name}: ${detail}` : `${name}: ${detail}. Fix: ${fix}`)
   }
   if (!WIN) info('not Windows, so the Windows traps are skipped rather than reported')
   info('open the EXACT url dsh prints (localhost vs 127.0.0.1 are different origins; the wrong one 403s every /api call)')
-  info('one-command install: npx dsh-win32 setup  (wires bundle + preset + health report)')
+  info('current DSH setup: npx dsh-win32 setup  (official PowerShell, Workspace Write, shortcut, health report)')
+  info('old rc.6 preset setup: npx dsh-win32 setup --legacy')
   info('machine-readable output: npx dsh-win32 doctor --json  (dsh-doctor/v1 envelope; add --remediation for the v1.1 keyed fix list)')
   info(`${REPO}  (issues and real-hardware reports welcome)`)
-  return { gitBash, exitCode }
+  return { gitBash, official, exitCode }
 }
 
 /**
@@ -414,16 +495,77 @@ function createShortcut() {
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true })
 }
 
-async function setup(args) {
-  const bashFlagIndex = args.indexOf('--bash')
-  const explicitBash = bashFlagIndex !== -1 ? args[bashFlagIndex + 1] : undefined
-  const profileFlagIndex = args.indexOf('--profile')
-  const profile = profileFlagIndex === -1 ? 'web' : args[profileFlagIndex + 1]
+function profileFrom(args) {
+  const index = args.indexOf('--profile')
+  const profile = index === -1 ? 'web' : args[index + 1]
   if (profile === undefined || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(profile)) {
     console.error('setup: --profile needs one safe profile name')
     process.exit(1)
   }
-  const { gitBash } = doctor()
+  return profile
+}
+
+function claimSetupStarPrompt() {
+  const marker = join(DSH_HOME, '.dsh-win32-star-prompted')
+  if (existsSync(marker)) return false
+  try {
+    mkdirSync(DSH_HOME, { recursive: true })
+    writeFileSync(marker, `${new Date().toISOString()}\n`, { flag: 'wx' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function setupCurrent(args) {
+  const profile = profileFrom(args)
+  if (!WIN) {
+    console.error('setup: current DSH Windows setup is Windows-only')
+    process.exit(1)
+  }
+  const health = doctor({ profile })
+  console.log('')
+  if (!health.official) {
+    console.error('setup: the published DSH release does not expose the complete official Windows stack')
+    console.error('update DSH or run npx dsh-win32 setup --legacy for an rc.6-era installation')
+    process.exit(1)
+  }
+  console.log('current DSH already includes persistent PowerShell and the Windows Workspace Write sandbox')
+  console.log('dsh-win32 did not install a bundle, custom preset, Git Bash, busybox, or another program')
+  if (args.includes('--sandboxed')) {
+    console.log('--sandboxed is no longer needed; the official preset uses Workspace Write directly')
+  }
+
+  if (profile === 'web' && !args.includes('--no-shortcut')) {
+    try {
+      createShortcut()
+      console.log('created desktop shortcut "DeepSeek Harness"')
+    } catch {
+      warn('could not create the desktop shortcut. Start with: npx @deepseek-ai/dsh web')
+    }
+  }
+
+  console.log('')
+  console.log('next, in order:')
+  if (profile === 'web' && !args.includes('--no-shortcut')) {
+    console.log('  1. double-click "DeepSeek Harness" on your desktop')
+  } else {
+    console.log(profile === 'web'
+      ? '  1. npx @deepseek-ai/dsh web'
+      : `  1. start or restart the DSH host that uses profile "${profile}"`)
+  }
+  console.log('  2. add a workspace from the sidebar')
+  console.log('  3. choose the stock Minimal preset and keep Workspace Write enabled')
+  if (claimSetupStarPrompt()) console.log(`  useful on your machine? Star it at ${REPO}`)
+  console.log('')
+  console.log(`${REPO}  (Windows fixes, doctor output, and legacy rc.6 support)`)
+}
+
+async function setupLegacy(args) {
+  const bashFlagIndex = args.indexOf('--bash')
+  const explicitBash = bashFlagIndex !== -1 ? args[bashFlagIndex + 1] : undefined
+  const profile = profileFrom(args)
+  const { gitBash } = doctor({ legacy: true, profile })
   console.log('')
 
   const sandboxed = args.includes('--sandboxed')
@@ -505,17 +647,23 @@ async function setup(args) {
 }
 
 async function main([command, ...rest]) {
-  if (command === 'setup') await setup(rest)
+  if (command === 'setup') {
+    if (rest.includes('--legacy')) await setupLegacy(rest.filter((arg) => arg !== '--legacy'))
+    else await setupCurrent(rest)
+  }
   else if (command === 'fix') fix()
   else if (command === 'doctor' || command === undefined) {
     // Exit codes apply to a direct `doctor` run only. `setup` calls doctor for
     // its report and decides for itself whether a finding is fatal.
+    const profile = profileFrom(rest)
     process.exitCode = doctor({
       json: rest.includes('--json'),
       remediation: rest.includes('--remediation'),
+      legacy: rest.includes('--legacy'),
+      profile,
     }).exitCode
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json [--remediation]]|setup|fix] [--profile <name>] [--bash <path>] [--no-shortcut] [--no-bundle] [--sandboxed [--busybox <path>]]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
     process.exit(1)
   }
 }

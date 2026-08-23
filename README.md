@@ -1,23 +1,18 @@
 # dsh-win32
 
-## Persistent shell on Windows. No WSL.
+## Fix DSH on Windows. No WSL.
 
-**One command. Workspace Write.**
-
-Run DSH Minimal mode on Windows with the sandboxed preset.
+**Official PowerShell. Workspace Write. One command.**
 
 ```powershell
-npx dsh-win32 setup --sandboxed
+npx dsh-win32 setup
 ```
 
-DeepSeek Harness already runs natively on Windows with PowerShell. dsh-win32 adds persistent Minimal presets, including one that survives Workspace Write.
+Current DeepSeek Harness already includes persistent PowerShell and a Windows ACL sandbox. dsh-win32 checks that official stack, finds known Windows failures, applies the repairs it can prove safe, and creates a desktop shortcut.
 
-This preset uses busybox ash, so Git Bash and WSL are not required.
+It does not install Git, PowerShell, busybox, WSL, or another DSH bundle on the current path.
 
-> [!IMPORTANT]
-> dsh-win32 0.15.1 supports DSH rc.6. DSH rc.8 and later already ship Minimal with PowerShell on Windows. The current DSH subprocess package still pins `node-pty@1.2.0-beta.15`, which fails this plugin's Windows PTY path before the first write. Use stock Minimal on current DSH or follow [the upstream compatibility report](https://github.com/deepseek-ai/deepseek-harness/discussions/2851) until that dependency changes.
-
-[中文](./README.zh.md) · [Windows details](./docs/windows-details.md)
+[中文](./README.zh.md) · [Windows evidence and legacy details](./docs/windows-details.md)
 
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
@@ -27,49 +22,66 @@ This preset uses busybox ash, so Git Bash and WSL are not required.
 <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT">
 </p>
 
-## See it work
+## See the current setup
 
-**Illustrated installation reproduction. This is not a real capture.**
+**Reproduced setup flow. This is not a screen recording.**
 
-![Illustrated dsh-win32 installation reproduction](./assets/demo.gif)
+![Reproduced dsh-win32 setup on current DSH](./assets/demo.gif)
 
-**Real Windows session.**
+The command checks the official persistent PowerShell and Workspace Write packages, creates the shortcut, and leaves the profile on the stock Minimal preset.
 
-![A real Windows session fixes a failing test in Workspace Write](./assets/shot-persistent-sandboxed.png)
+## What setup does
 
-The real session runs a failing test, reads the source, applies a fix, and reruns it to `all tests passed` in `Workspace Write`.
+- Checks the latest published DSH Windows package contract
+- Checks PowerShell 7 and known broken koffi runtimes
+- Creates a `DeepSeek Harness` desktop shortcut for the Web profile
+- Leaves the official profile and preset unchanged
+- Shows the exact next steps for a first session
 
-## Choose a preset
+After setup, open DSH, add a workspace, choose the stock **Minimal** preset, and keep **Workspace Write** enabled.
 
-After setup, start DSH, add a workspace, and choose the preset.
-
-- **Minimal (Windows, sandboxed)** uses busybox ash inside `Workspace Write`. Install it with `npx dsh-win32 setup --sandboxed`.
-- **Minimal (Windows)** uses Git Bash and needs `danger-full-access`. Install it with `npx dsh-win32 setup` after installing [Git for Windows](https://git-scm.com).
-
-Using DSH Desktop instead of the Web profile?
+Use another profile without creating a shortcut.
 
 ```powershell
-npx dsh-win32 setup --sandboxed --profile desktop --no-shortcut
+npx dsh-win32 setup --profile desktop --no-shortcut
 ```
 
-Restart DSH Desktop after setup, then choose **Minimal (Windows, sandboxed)**.
+`--sandboxed` remains accepted for old notes and scripts. Current DSH already provides the sandbox, so the flag makes no extra change.
 
-## Doctor
+## Doctor and safe repair
 
 ```powershell
 npx dsh-win32 doctor
+npx dsh-win32 doctor --json
+npx dsh-win32 fix
 ```
 
-`doctor` lists known Windows setup traps and their safe fixes. Its koffi check verifies both the installed version and a real runtime load, so a skipped install script cannot produce a false pass. Use `npx dsh-win32 fix` for fixes it can apply safely.
+`doctor` verifies the published DSH Windows stack and checks local Windows failures. Its JSON output follows the `dsh-doctor/v1` envelope.
+
+`fix` only repairs installed koffi versions that are known broken or fail a real runtime load. It verifies the load again after repair.
+
+## Legacy DSH
+
+DSH rc.6 and older did not ship the current official PowerShell stack. The previous Git Bash and busybox presets remain available behind an explicit flag.
+
+```powershell
+npx dsh-win32 setup --legacy
+npx dsh-win32 setup --legacy --sandboxed
+npx dsh-win32 doctor --legacy
+```
+
+The legacy Git Bash preset needs `danger-full-access`. The legacy busybox preset can run in Workspace Write. Neither path installs Git automatically.
+
+[Read the implementation evidence, compatibility history, and complete legacy limitations](./docs/windows-details.md).
 
 ## Honest limits
 
-- The sandboxed preset is ash, not Bash. It does not support arrays or `[[ ]]`.
-- Legacy-encoded files are read automatically, but saving an edited file writes UTF-8.
-- Treat `C:\tmp` as outside the expected write fence until the upstream Windows path issue is fixed.
-
-[Read the Windows details, evidence, and complete limitations](./docs/windows-details.md). [Read the Chinese translation](./README.zh.md).
+- The current path checks published DSH package metadata. It cannot prove that a separately cached launcher is the same version.
+- PowerShell 7 is recommended. dsh-win32 does not install it.
+- A legacy busybox session uses ash rather than Bash.
+- Editing a legacy encoded file writes UTF-8.
+- Treat `C:\tmp` as outside the expected legacy write fence until the upstream Windows path issue is fixed.
 
 ## License
 
-MIT. The preset composition mirrors the official Minimal preset with credit.
+MIT.

@@ -62,13 +62,13 @@
     <div id="chat">
       <div id="preset"></div>
       <div id="turn">
-        <div class="umsg">Fix the failing test in this workspace.</div>
+        <div class="umsg">Check PowerShell inside Workspace Write.</div>
         <div class="card" id="card1" style="visibility:hidden">
-          <div class="chead"><span class="spin" id="s1">◐</span> <span class="tname">bash</span> <span id="c1arg">MARK=win42</span></div>
+          <div class="chead"><span class="spin" id="s1">◐</span> <span class="tname">pwsh</span> <span id="c1arg">$PSVersionTable.PSVersion</span></div>
           <div class="cbody" id="c1out"></div>
         </div>
         <div class="card" id="card2" style="visibility:hidden">
-          <div class="chead"><span class="spin" id="s2">◐</span> <span class="tname">bash</span> npm test</div>
+          <div class="chead"><span class="spin" id="s2">◐</span> <span class="tname">pwsh</span> git status --short</div>
           <div class="cbody" id="c2out"></div>
         </div>
         <div class="amsg" id="amsg"></div>
@@ -84,8 +84,8 @@
 </div>
 <div id="end">
   <div class="big">dsh-win32</div>
-  <div class="sub">Native Windows. No WSL.</div>
-  <div class="cmd">npx dsh-win32 setup --sandboxed</div>
+  <div class="sub">Fix DSH on Windows. No WSL.</div>
+  <div class="cmd">npx dsh-win32 setup</div>
 </div>
 </div>
 
@@ -97,12 +97,12 @@ const ph = (t,a,b) => clamp((t-a)/(b-a), 0, 1)
 const after = (t,a) => t >= a
 const typed = (s,p) => s.slice(0, Math.round(s.length*p))
 
-const CMD = 'npx dsh-win32 setup --sandboxed'
+const CMD = 'npx dsh-win32 setup'
 const DOC = [
-  ['tg','  ok    installed preset "minimal-windows-sandboxed"'],
-  ['tg','  ok    busybox ash is ready'],
-  ['tg','  ok    Workspace Write is ready'],
-  ['tw','Next add a workspace and choose the preset'],
+  ['tg','  ok    official persistent PowerShell found'],
+  ['tg','  ok    Windows ACL sandbox found'],
+  ['tg','  ok    desktop shortcut created'],
+  ['tw','No bundle, custom preset, Git Bash, or WSL installed'],
 ]
 
 window.DURATION = 15000
@@ -119,11 +119,11 @@ window.seek = function(t){
   $('end').style.opacity = t >= 13200 ? String(ph(t,13200,13600)) : '0'
   $('world').style.opacity = t >= 13200 ? String(1-ph(t,13200,13600)) : '1'
 
-  // The opening is explicitly marked as an illustration.
+  // The opening is explicitly marked as a reproduction.
   if (t < 7500) {
-    $('preset').innerHTML = 'Illustrated setup reproduction'
+    $('preset').innerHTML = 'Reproduced setup · not a screen recording'
   } else {
-    $('preset').innerHTML = 'Agent preset · <b>Minimal (Windows, sandboxed)</b>'
+    $('preset').innerHTML = 'Stock Minimal · <b>Workspace Write</b>'
   }
 
   // ── scene A: the illustrated setup prompt ──
@@ -133,20 +133,20 @@ window.seek = function(t){
     $('amsg').textContent = ''
   }
 
-  // ── scene C: the Workspace Write result ──
+  // ── scene C: the official PowerShell result ──
   if (t >= 7500) {
     $('card1').style.visibility = after(t,7800) ? 'visible' : 'hidden'
     const d1 = after(t,8300)
     $('s1').textContent = d1 ? '✓' : '◐'
     $('s1').style.color = d1 ? 'var(--ok)' : 'var(--dim)'
-    $('c1arg').textContent = 'npm test'
-    $('c1out').innerHTML = d1 ? '<span class="failrow">1 failing test</span>' : ''
+    $('c1arg').textContent = '$PSVersionTable.PSVersion.ToString()'
+    $('c1out').innerHTML = d1 ? '<span class="ok">7.5.3</span>' : ''
     $('card2').style.visibility = after(t,9000) ? 'visible' : 'hidden'
     const d2 = after(t,9700)
     $('s2').textContent = d2 ? '✓' : '◐'
     $('s2').style.color = d2 ? 'var(--ok)' : 'var(--dim)'
-    $('c2out').innerHTML = d2 ? '<span class="ok">all tests passed</span>' : ''
-    const msg = 'Workspace Write applied the fix inside this workspace.'
+    $('c2out').innerHTML = d2 ? '<span class="ok">working tree clean</span>' : ''
+    const msg = 'Official PowerShell is running inside Workspace Write.'
     $('amsg').textContent = after(t,10300) ? typed(msg, ph(t,10300,11600)) : ''
   }
 
