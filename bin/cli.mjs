@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * dsh-win32 CLI: `doctor` diagnoses the known DSH-on-Windows traps,
- * `setup` installs the minimal-windows agent preset (and optionally a
- * desktop shortcut). Zero dependencies.
+ * dsh-win32 CLI: `doctor` diagnoses the known DSH-on-Windows traps.
+ * Current `setup` verifies the official Windows stack and creates a shortcut.
+ * `setup --legacy` installs the old custom presets. Zero dependencies.
  */
 
 import { execFileSync } from 'node:child_process'
