@@ -1,6 +1,7 @@
 research/
 node_modules/
 lib/
+lib/star.mjs
 __pycache__/
 .DS_Store
 launch/
