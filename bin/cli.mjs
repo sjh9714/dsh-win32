@@ -524,15 +524,20 @@ async function offerSetupStar() {
   const githubCli = WIN ? 'gh.exe' : 'gh'
   const canStar = tryExec(githubCli, ['auth', 'status', '--hostname', 'github.com']) !== undefined
   const prompt = createInterface({ input: process.stdin, output: process.stdout })
-  let answer
+  let wantsStar
   try {
-    answer = await prompt.question(canStar
-      ? '  Star dsh-win32 with your GitHub account? [y/N] '
-      : '  Open GitHub to Star dsh-win32? [y/N] ')
+    while (wantsStar === undefined) {
+      const answer = await prompt.question(canStar
+        ? '  Star dsh-win32 with your GitHub account? [y/n] '
+        : '  Open GitHub to Star dsh-win32? [y/n] ')
+      if (/^y(?:es)?$/i.test(answer.trim())) wantsStar = true
+      else if (/^n(?:o)?$/i.test(answer.trim())) wantsStar = false
+      else console.log('  enter y or n')
+    }
   } finally {
     prompt.close()
   }
-  if (!/^y(?:es)?$/i.test(answer.trim())) return
+  if (!wantsStar) return
 
   if (canStar) {
     try {
