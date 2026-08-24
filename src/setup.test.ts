@@ -50,6 +50,8 @@ describe('setup on Windows', () => {
     expect(run.status).toBe(0)
     expect(run.stdout).toContain('current DSH already includes persistent PowerShell')
     expect(run.stdout).toContain('--sandboxed is no longer needed')
+    expect(run.stdout).not.toContain('Open GitHub to Star dsh-win32')
+    expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(false)
     expect(existsSync(join(home, '.agent-presets'))).toBe(false)
   }, SPAWN_TIMEOUT)
 

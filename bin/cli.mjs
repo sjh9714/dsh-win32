@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { createInterface } from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
@@ -517,6 +518,43 @@ function claimSetupStarPrompt() {
   }
 }
 
+async function offerSetupStar() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY || !claimSetupStarPrompt()) return
+
+  const githubCli = WIN ? 'gh.exe' : 'gh'
+  const canStar = tryExec(githubCli, ['auth', 'status', '--hostname', 'github.com']) !== undefined
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  let answer
+  try {
+    answer = await prompt.question(canStar
+      ? '  Star dsh-win32 with your GitHub account? [y/N] '
+      : '  Open GitHub to Star dsh-win32? [y/N] ')
+  } finally {
+    prompt.close()
+  }
+  if (!/^y(?:es)?$/i.test(answer.trim())) return
+
+  if (canStar) {
+    try {
+      execFileSync(githubCli, ['api', '--method', 'PUT', 'user/starred/sjh9714/dsh-win32'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      })
+      console.log('  Starred dsh-win32 with your authenticated GitHub account')
+      return
+    } catch {
+      warn('GitHub did not accept the Star request; opening the repository instead')
+    }
+  }
+
+  try {
+    execFileSync('rundll32.exe', ['url.dll,FileProtocolHandler', REPO], { windowsHide: true })
+    console.log('  opened GitHub in your default browser; the final Star click is yours')
+  } catch {
+    console.log(`  could not open the browser; visit ${REPO}`)
+  }
+}
+
 async function setupCurrent(args) {
   const profile = profileFrom(args)
   if (!WIN) {
@@ -556,7 +594,7 @@ async function setupCurrent(args) {
   }
   console.log('  2. add a workspace from the sidebar')
   console.log('  3. choose the stock Minimal preset and keep Workspace Write enabled')
-  if (claimSetupStarPrompt()) console.log(`  useful on your machine? Star it at ${REPO}`)
+  await offerSetupStar()
   console.log('')
   console.log(`${REPO}  (Windows fixes, doctor output, and legacy rc.6 support)`)
 }
