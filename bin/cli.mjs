@@ -521,14 +521,31 @@ function claimSetupStarPrompt() {
 async function offerSetupStar() {
   if (!process.stdin.isTTY || !process.stdout.isTTY || !claimSetupStarPrompt()) return
 
+  const githubCli = WIN ? 'gh.exe' : 'gh'
+  const canStar = tryExec(githubCli, ['auth', 'status', '--hostname', 'github.com']) !== undefined
   const prompt = createInterface({ input: process.stdin, output: process.stdout })
   let answer
   try {
-    answer = await prompt.question('  Open GitHub to Star dsh-win32? [y/N] ')
+    answer = await prompt.question(canStar
+      ? '  Star dsh-win32 with your GitHub account? [y/N] '
+      : '  Open GitHub to Star dsh-win32? [y/N] ')
   } finally {
     prompt.close()
   }
   if (!/^y(?:es)?$/i.test(answer.trim())) return
+
+  if (canStar) {
+    try {
+      execFileSync(githubCli, ['api', '--method', 'PUT', 'user/starred/sjh9714/dsh-win32'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      })
+      console.log('  Starred dsh-win32 with your authenticated GitHub account')
+      return
+    } catch {
+      warn('GitHub did not accept the Star request; opening the repository instead')
+    }
+  }
 
   try {
     execFileSync('rundll32.exe', ['url.dll,FileProtocolHandler', REPO], { windowsHide: true })
