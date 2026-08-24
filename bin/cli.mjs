@@ -9,7 +9,6 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { createInterface } from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
@@ -523,21 +522,6 @@ async function offerSetupStar() {
 
   const githubCli = WIN ? 'gh.exe' : 'gh'
   const canStar = tryExec(githubCli, ['auth', 'status', '--hostname', 'github.com']) !== undefined
-  const prompt = createInterface({ input: process.stdin, output: process.stdout })
-  let wantsStar
-  try {
-    while (wantsStar === undefined) {
-      const answer = await prompt.question(canStar
-        ? '  Star dsh-win32 with your GitHub account? [y/n] '
-        : '  Open GitHub to Star dsh-win32? [y/n] ')
-      if (/^y(?:es)?$/i.test(answer.trim())) wantsStar = true
-      else if (/^n(?:o)?$/i.test(answer.trim())) wantsStar = false
-      else console.log('  enter y or n')
-    }
-  } finally {
-    prompt.close()
-  }
-  if (!wantsStar) return
 
   if (canStar) {
     try {
