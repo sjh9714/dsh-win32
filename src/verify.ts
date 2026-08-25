@@ -863,7 +863,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       await expectToolMarker(
         ctx,
         agent,
-        "if ($env:DSH_WIN32_VERIFY_STATE -eq '42') { [IO.File]::WriteAllText('state-location.txt', 'cwd-ok'); [Console]::WriteLine(('DSH_VERIFY_' + 'STATE_OK')) }",
+        "if ($env:DSH_WIN32_VERIFY_STATE -eq '42') { [IO.File]::WriteAllText((Join-Path (Get-Location).ProviderPath 'state-location.txt'), 'cwd-ok'); [Console]::WriteLine(('DSH_VERIFY_' + 'STATE_OK')) }",
         'DSH_VERIFY_STATE_OK',
       )
       const current = String(ctx.terminals.list(agent)[0]?.sessionId ?? '')
@@ -875,7 +875,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       await expectToolMarker(
         ctx,
         agent,
-        "[IO.File]::WriteAllText('inside.txt', 'inside-ok'); if ([IO.File]::ReadAllText('inside.txt') -eq 'inside-ok') { [Console]::WriteLine(('DSH_VERIFY_INSIDE_' + 'OK')) }",
+        "[IO.File]::WriteAllText((Join-Path (Get-Location).ProviderPath 'inside.txt'), 'inside-ok'); if ([IO.File]::ReadAllText((Join-Path (Get-Location).ProviderPath 'inside.txt')) -eq 'inside-ok') { [Console]::WriteLine(('DSH_VERIFY_INSIDE_' + 'OK')) }",
         'DSH_VERIFY_INSIDE_OK',
       )
       if (readFileSync(join(stateDirectory, 'inside.txt'), 'utf8') !== 'inside-ok') throw new Error('inside content mismatch')
