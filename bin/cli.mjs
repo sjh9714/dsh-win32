@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url'
 import process from 'node:process'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
+import { verifyInstalledStack } from '../lib/verify.js'
 
 const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
@@ -362,6 +363,27 @@ function doctor({ json = false, remediation = false, legacy = false, profile = '
   return { gitBash, official, exitCode }
 }
 
+async function verify({ json = false, profile = 'web' } = {}) {
+  const report = await verifyInstalledStack({ profile })
+  if (json) {
+    console.log(JSON.stringify(report, null, 2))
+  } else {
+    console.log('dsh-win32 verify (installed official component chain)')
+    if (report.installedDshVersion !== undefined) {
+      console.log(`  info  @deepseek-ai/dsh ${report.installedDshVersion} (${report.installedDshSource ?? 'installed'} source)`)
+    }
+    if (report.status === 'unsupported') {
+      console.log(`  skip  unsupported: ${report.reason}`)
+    } else {
+      for (const { name, status, detail } of report.checks) RENDER[status](`${name}: ${detail}`)
+    }
+    info(`boundary: ${report.boundary}`)
+    if (report.status === 'pass') ok('live acceptance passed')
+    else if (report.status === 'fail') bad('live acceptance failed')
+  }
+  process.exitCode = report.ok ? 0 : 1
+}
+
 /**
  * What the profile actually runs, which is not what the CLI is.
  *
@@ -495,11 +517,11 @@ function createShortcut() {
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true })
 }
 
-function profileFrom(args) {
+function profileFrom(args, command = 'setup') {
   const index = args.indexOf('--profile')
   const profile = index === -1 ? 'web' : args[index + 1]
   if (profile === undefined || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(profile)) {
-    console.error('setup: --profile needs one safe profile name')
+    console.error(`${command}: --profile needs one safe profile name`)
     process.exit(1)
   }
   return profile
@@ -679,6 +701,10 @@ async function main([command, ...rest]) {
     else await setupCurrent(rest)
   }
   else if (command === 'fix') fix()
+  else if (command === 'verify') {
+    const profile = profileFrom(rest, 'verify')
+    await verify({ json: rest.includes('--json'), profile })
+  }
   else if (command === 'doctor' || command === undefined) {
     // Exit codes apply to a direct `doctor` run only. `setup` calls doctor for
     // its report and decides for itself whether a finding is fatal.
@@ -689,8 +715,11 @@ async function main([command, ...rest]) {
       legacy: rest.includes('--legacy'),
       profile,
     }).exitCode
+  } else if (command === 'help' || command === '--help' || command === '-h') {
+    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
+    console.log('  verify  Live, model/API-free acceptance of an already-installed official DSH Windows component chain')
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
     process.exit(1)
   }
 }
