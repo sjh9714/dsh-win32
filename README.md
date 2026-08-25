@@ -48,6 +48,30 @@ npx dsh-win32 setup --profile desktop --no-shortcut
 
 `--sandboxed` remains accepted for old notes and scripts. Current DSH already provides the sandbox, so the flag makes no extra change.
 
+## Live verification of an installed stack
+
+```powershell
+npx dsh-win32 verify
+npx dsh-win32 verify --json
+```
+
+`verify` is a model- and API-key-free acceptance run against an **already installed** `@deepseek-ai/dsh` dependency tree. It does not use registry metadata as proof. In an isolated temporary home and workspace it invokes the installed model-facing persistent `pwsh` tool through the official terminal, subprocess, Workspace Write policy, and Windows ACL sandbox components.
+
+A pass requires all of these live observations:
+
+- 64-bit PowerShell 7 launches and reports a real executable
+- two `pwsh` calls retain the same PTY, current directory, and environment state
+- exact content is written and read inside the temporary workspace
+- a normal-process control can write the isolated outside target, while confined PowerShell is denied and creates no file
+- the shell recovers after denial; cancellation tears down its PTY; a replacement call works; and a second cancellation tears down cleanly
+- every runtime resource, temporary home, and temporary workspace is removed
+
+No user DSH profile, config, workspace, or PowerShell profile is loaded or changed. Secret-bearing environment variables are not passed to the worker, and reports contain no tested paths or terminal output. Native Windows and a DSH-supported Node release are required; Node 23 is explicitly unsupported.
+
+If a timeout or output limit leaves worker or descendant containment unconfirmed, verification fails and preserves the isolated snapshot instead of deleting files under a potentially live process.
+
+The boundary is deliberate: this composes the installed official components and invokes the real persistent tool, but it does not start the complete stock Minimal host/preset or make a model request. A pass must therefore be read as component-chain acceptance, not as an end-to-end stock-session claim.
+
 ## Doctor and safe repair
 
 ```powershell
@@ -56,7 +80,7 @@ npx dsh-win32 doctor --json
 npx dsh-win32 fix
 ```
 
-`doctor` verifies the published DSH Windows stack and checks local Windows failures. Its JSON output follows the `dsh-doctor/v1` envelope.
+`doctor` verifies the published DSH Windows package contract and checks local Windows failures. Its JSON output follows the `dsh-doctor/v1` envelope. Use `verify` when you need live evidence from the installed stack rather than registry metadata.
 
 `fix` only repairs installed koffi versions that are known broken or fail a real runtime load. It verifies the load again after repair.
 
@@ -76,7 +100,8 @@ The legacy Git Bash preset needs `danger-full-access`. The legacy busybox preset
 
 ## Honest limits
 
-- The current path checks published DSH package metadata. It cannot prove that a separately cached launcher is the same version.
+- `doctor` checks published package metadata; `verify` separately reports and loads the selected installed DSH identity.
+- `verify` does not boot the complete stock Minimal host/preset, so host wiring and UI session ownership remain outside its pass claim.
 - PowerShell 7 is recommended. dsh-win32 does not install it.
 - A legacy busybox session uses ash rather than Bash.
 - Editing a legacy encoded file writes UTF-8.

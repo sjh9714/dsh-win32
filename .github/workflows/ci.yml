@@ -92,6 +92,81 @@ jobs:
             grep -q "shellPath: '/bin/bash'" "$HOME/.dsh/.agent-presets/minimal-windows/agent.cordis.yml"
           fi
 
+  official-live-acceptance:
+    # Gating Windows acceptance on both a flattened npm tree and pnpm's strict
+    # symlink graph. Either layout failing launch, confinement, lifecycle, or
+    # canonical owner resolution blocks the change.
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.19.0', '24']
+        installer: [npm, pnpm-strict]
+    name: official live acceptance (${{ matrix.installer }}, Node ${{ matrix.node }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm install
+      - run: npm run build
+      - name: install pnpm used by the upstream strict graph
+        if: matrix.installer == 'pnpm-strict'
+        run: npm install --global pnpm@11.7.0
+      - name: install current official DSH into an isolated runner tree
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          $official = Join-Path $env:RUNNER_TEMP "dsh-official"
+          if ('${{ matrix.installer }}' -eq 'npm') {
+            # The current official graph can stall npm's cyclic peer resolver.
+            # The supported workaround still produces the flattened npm tree
+            # whose installed component chain this lane is meant to validate.
+            npm install --prefix $official --install-strategy=hoisted --legacy-peer-deps --foreground-scripts --no-audit --no-fund @deepseek-ai/dsh@latest
+            # legacy-peer-deps deliberately omits peer-only runtime seams.
+            # Install the exact closure used by this acceptance composition at
+            # the selected DSH version, without guessing registry dist-tags.
+            $dshManifest = Join-Path $official 'node_modules/@deepseek-ai/dsh/package.json'
+            $dshVersion = node -e "process.stdout.write(require(process.argv[1]).version)" $dshManifest
+            if ($LASTEXITCODE -ne 0 -or [String]::IsNullOrWhiteSpace($dshVersion)) { throw 'could not read installed DSH version' }
+            $runtimePeers = @(
+              '@deepseek-ai/dsh-invariants',
+              '@deepseek-ai/dsh-scope',
+              '@deepseek-ai/dsh-code-runtime',
+              '@deepseek-ai/dsh-timeout',
+              '@deepseek-ai/dsh-sandbox',
+              '@deepseek-ai/dsh-shell'
+            ) | ForEach-Object { "$_@$dshVersion" }
+            npm install --prefix $official --save-exact --install-strategy=hoisted --legacy-peer-deps --foreground-scripts --no-audit --no-fund @runtimePeers
+          } else {
+            New-Item -ItemType Directory -Force -Path $official | Out-Null
+            '{"name":"dsh-live-acceptance","version":"0.0.0","private":true}' | Set-Content -Encoding utf8 (Join-Path $official 'package.json')
+            # pnpm 11 reads project and build policy from pnpm-workspace.yaml,
+            # not .npmrc. Keep the graph strict and approve only the native
+            # scripts required by the current official DSH dependency graph.
+            @(
+              'nodeLinker: isolated',
+              'hoist: false',
+              'shamefullyHoist: false',
+              'strictDepBuilds: true',
+              'minimumReleaseAge: 0',
+              'allowBuilds:',
+              "  '@deepseek-ai/dsh-subprocess-local': true",
+              "  '@google/genai': true",
+              '  koffi: true',
+              '  node-pty: true',
+              '  protobufjs: true'
+            ) | Set-Content -Encoding utf8 (Join-Path $official 'pnpm-workspace.yaml')
+            pnpm --dir $official add --save-exact @deepseek-ai/dsh@latest
+          }
+      - name: live persistent PowerShell + Workspace Write acceptance
+        timeout-minutes: 6
+        shell: pwsh
+        run: |
+          $official = Join-Path $env:RUNNER_TEMP "dsh-official"
+          $env:DSH_WIN32_VERIFY_DSH = Join-Path $official "node_modules/@deepseek-ai/dsh/package.json"
+          node bin/cli.mjs verify
+
   sandbox-experiment:
     # First-ever exercise of the win32 sandboxed persistent-shell path
     # (core CI excludes terminal-bash and sandbox-local on win32).
