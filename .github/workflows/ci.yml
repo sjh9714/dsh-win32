@@ -114,6 +114,7 @@ jobs:
         if: matrix.installer == 'pnpm-strict'
         run: npm install --global pnpm@11.7.0
       - name: install current official DSH into an isolated runner tree
+        timeout-minutes: 12
         shell: pwsh
         run: |
           $official = Join-Path $env:RUNNER_TEMP "dsh-official"
@@ -122,9 +123,22 @@ jobs:
           } else {
             New-Item -ItemType Directory -Force -Path $official | Out-Null
             '{"name":"dsh-live-acceptance","version":"0.0.0","private":true}' | Set-Content -Encoding utf8 (Join-Path $official 'package.json')
-            # This throwaway CI-only tree must exercise the same official
-            # upstream native install scripts that npm permits by default.
-            @('node-linker=isolated', 'hoist=false', 'shamefully-hoist=false', 'dangerouslyAllowAllBuilds=true') | Set-Content -Encoding utf8 (Join-Path $official '.npmrc')
+            # pnpm 11 reads project and build policy from pnpm-workspace.yaml,
+            # not .npmrc. Keep the graph strict and approve only the native
+            # scripts required by the current official DSH dependency graph.
+            @(
+              'nodeLinker: isolated',
+              'hoist: false',
+              'shamefullyHoist: false',
+              'strictDepBuilds: true',
+              'minimumReleaseAge: 0',
+              'allowBuilds:',
+              "  '@deepseek-ai/dsh-subprocess-local': true",
+              "  '@google/genai': true",
+              '  koffi: true',
+              '  node-pty: true',
+              '  protobufjs: true'
+            ) | Set-Content -Encoding utf8 (Join-Path $official 'pnpm-workspace.yaml')
             pnpm --dir $official add --save-exact @deepseek-ai/dsh@latest
           }
       - name: live persistent PowerShell + Workspace Write acceptance
