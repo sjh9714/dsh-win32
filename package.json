@@ -52,6 +52,7 @@
     "lib",
     "bin",
     "preset",
+    "docs/README.zh.md",
     "docs/windows-details.md",
     "assets/demo.gif",
     "assets/shot-persistent-sandboxed.png",

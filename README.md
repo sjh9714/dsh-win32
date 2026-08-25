@@ -12,7 +12,7 @@ Current DeepSeek Harness already includes persistent PowerShell and a Windows AC
 
 It does not install Git, PowerShell, busybox, WSL, or another DSH bundle on the current path.
 
-[中文](./README.zh.md) · [Windows evidence and legacy details](./docs/windows-details.md)
+[中文](./docs/README.zh.md) · [Windows evidence and legacy details](./docs/windows-details.md)
 
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>

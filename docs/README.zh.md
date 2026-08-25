@@ -12,7 +12,7 @@ npx dsh-win32 setup
 
 当前路径不会安装 Git、PowerShell、busybox、WSL，也不会把另一个 DSH bundle 写进 profile。
 
-[English](./README.md) · [Windows 实证与旧版细节](./docs/windows-details.md)
+[English](../README.md) · [Windows 实证与旧版细节](./windows-details.md)
 
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
@@ -25,7 +25,7 @@ npx dsh-win32 setup
 
 **可复现的安装演示，不是真实录屏。**
 
-![当前 DSH 上的 dsh-win32 安装流程](./assets/demo.gif)
+![当前 DSH 上的 dsh-win32 安装流程](../assets/demo.gif)
 
 这条命令会完成下面的工作。
 
