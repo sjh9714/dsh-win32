@@ -11,7 +11,7 @@ import {
   offerSetupStar,
   parseSetupStarAnswer,
   runSetupStarConfirmation,
-} from '../bin/cli.mjs'
+} from '../bin/setup-consent.mjs'
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'cli.mjs')
 
