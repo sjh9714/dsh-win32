@@ -29,8 +29,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
-import { release } from 'node:os'
+import { release, version as osVersion } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { Context } from '@deepseek-ai/cordis'
@@ -45,15 +44,18 @@ function emit(fields) {
   console.log(Object.entries(fields).map(([k, v]) => `${k}=${JSON.stringify(String(v))}`).join(' '))
 }
 
-function run(argv, timeoutMs = 60_000, extraEnv = undefined) {
-  const options = {
+function executionOptions(timeoutMs, extraEnv) {
+  return {
     encoding: 'utf8',
     timeout: timeoutMs,
     windowsHide: true,
     env: extraEnv === undefined ? process.env : { ...process.env, ...extraEnv },
   }
+}
+
+function captureExecution(execute) {
   try {
-    return { status: 0, signal: null, error: '', stdout: execFileSync(argv[0], argv.slice(1), options).trim(), stderr: '' }
+    return { status: 0, signal: null, error: '', stdout: execute().trim(), stderr: '' }
   } catch (error) {
     const status = typeof error?.status === 'number' ? error.status : null
     return {
@@ -66,6 +68,44 @@ function run(argv, timeoutMs = 60_000, extraEnv = undefined) {
   }
 }
 
+function runNode(args, timeoutMs = 60_000, extraEnv = undefined) {
+  const options = executionOptions(timeoutMs, extraEnv)
+  return captureExecution(() => execFileSync('C:\\hostedtoolcache\\windows\\node\\22.19.0\\x64\\node.exe', args, options))
+}
+
+function runVendoredNode(args, timeoutMs = 60_000, extraEnv = undefined) {
+  const options = executionOptions(timeoutMs, extraEnv)
+  return captureExecution(() => execFileSync('vendored\\node-v20.19.5-win-x64\\node.exe', args, options))
+}
+
+function runElectron(args, timeoutMs = 60_000, extraEnv = undefined) {
+  const options = executionOptions(timeoutMs, extraEnv)
+  return captureExecution(() => execFileSync('node_modules\\electron\\dist\\electron.exe', args, options))
+}
+
+function runPowerShell(shell, args, timeoutMs = 60_000) {
+  const options = executionOptions(timeoutMs)
+  if (shell === 'pwsh') {
+    return captureExecution(() => execFileSync('C:\\Program Files\\PowerShell\\7\\pwsh.exe', args, options))
+  }
+  if (shell === 'powershell51') {
+    return captureExecution(() => execFileSync('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', args, options))
+  }
+  throw new Error(`unsupported PowerShell ${JSON.stringify(shell)}`)
+}
+
+function runGitBash(shell, timeoutMs = 60_000) {
+  const args = ['--noprofile', '--norc', '-c', 'exit 42']
+  const options = executionOptions(timeoutMs)
+  if (shell === 'git-bash-64') {
+    return captureExecution(() => execFileSync('C:\\Program Files\\Git\\usr\\bin\\bash.exe', args, options))
+  }
+  if (shell === 'git-bash-32') {
+    return captureExecution(() => execFileSync('C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe', args, options))
+  }
+  throw new Error(`unsupported Git Bash ${JSON.stringify(shell)}`)
+}
+
 /**
  * Identify the host the way #203 asked reporters to: build, shell paths and
  * versions, and whether anything other than Defender is registered. The AV
@@ -74,32 +114,34 @@ function run(argv, timeoutMs = 60_000, extraEnv = undefined) {
  */
 function describeHost() {
   emit({ field: 'os', platform: process.platform, osRelease: release() })
-  const ver = run(['cmd', '/c', 'ver'])
-  emit({ field: 'windows_build', ver: ver.stdout.replace(/\s+/g, ' ') })
+  emit({ field: 'windows_build', ver: osVersion().replace(/\s+/g, ' ') })
 
-  for (const [label, shellPath] of WINDOWS_SHELLS) {
+  for (const { id, label, path: shellPath } of WINDOWS_SHELLS) {
     if (!existsSync(shellPath)) {
       emit({ field: 'shell', shell: label, present: 'no' })
       continue
     }
-    const version = run([shellPath, '-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()'])
+    const version = runPowerShell(id, ['-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()'])
     emit({ field: 'shell', shell: label, present: 'yes', path: shellPath, version: version.stdout, versionExit: version.status })
   }
 
   // SecurityCenter2 lists every registered AV product, Defender included.
   // displayName is what tells an injecting product apart from Defender.
-  const av = run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+  const av = runPowerShell('powershell51', ['-NoProfile', '-NonInteractive', '-Command',
     'try { (Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select-Object -ExpandProperty displayName) -join "|" } catch { "QUERY_FAILED: " + $_.Exception.Message }'])
   emit({ field: 'antivirus', products: av.stdout === '' ? '(none reported)' : av.stdout, exit: av.status })
 }
 
 /** Git Bash, the shell this chain is already known to kill at cygheap init. */
 function findGitBash() {
-  for (const base of ['C:\\Program Files', 'C:\\Program Files (x86)']) {
-    const candidate = join(base, 'Git', 'usr', 'bin', 'bash.exe')
-    if (existsSync(candidate)) return candidate
+  const candidates = [
+    { id: 'git-bash-64', path: 'C:\\Program Files\\Git\\usr\\bin\\bash.exe' },
+    { id: 'git-bash-32', path: 'C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe' },
+  ]
+  for (const candidate of candidates) {
+    if (existsSync(candidate.path)) return candidate
   }
-  return ''
+  return null
 }
 
 const root = mkdtempSync(join(process.cwd(), '.pwsh-probe-ws-'))
@@ -107,11 +149,11 @@ const writeFenceScript = join(root, 'write-outside.mjs')
 writeFileSync(writeFenceScript, "import { writeFileSync } from 'node:fs'; writeFileSync(process.argv[2], '')\n", 'utf8')
 
 // This probe intentionally targets clean GitHub-hosted Windows runners. Keep
-// executable locations independent of PATH and environment-controlled absolute
-// paths so a workflow environment cannot choose what this diagnostic executes.
+// executable locations fixed so a workflow environment cannot choose what this
+// diagnostic executes.
 const WINDOWS_SHELLS = [
-  ['pwsh', 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'],
-  ['powershell51', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'],
+  { id: 'pwsh', label: 'pwsh', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' },
+  { id: 'powershell51', label: 'powershell51', path: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' },
 ]
 
 const ctx = new Context()
@@ -122,11 +164,13 @@ const CHAIN = process.env.SMOKE_CHAIN ?? 'node'
 const SUPPORTED_CHAINS = new Set(['node', 'electron', 'electron-spawn-node', 'electron-spawn-vendored-node'])
 if (!SUPPORTED_CHAINS.has(CHAIN)) throw new Error(`unsupported SMOKE_CHAIN ${JSON.stringify(CHAIN)}`)
 /**
- * Captured before anything swaps what process.execPath means. The vendored cell
- * uses the fixed path created by the workflow rather than an environment path.
+ * The normal runner path matches the exact setup-node version in the workflow.
+ * The vendored cell uses the fixed relative path created by the workflow.
  */
-const VENDORED_NODE_PATH = join(process.cwd(), 'vendored', 'node-v20.19.5-win-x64', 'node.exe')
-const NODE_PATH = CHAIN === 'electron-spawn-vendored-node' ? VENDORED_NODE_PATH : process.execPath
+const USE_VENDORED_NODE = CHAIN === 'electron-spawn-vendored-node'
+const NODE_PATH = USE_VENDORED_NODE
+  ? 'vendored\\node-v20.19.5-win-x64\\node.exe'
+  : 'C:\\hostedtoolcache\\windows\\node\\22.19.0\\x64\\node.exe'
 
 /**
  * Point the windows-acl rung at an `ELECTRON_RUN_AS_NODE` trampoline instead of
@@ -135,9 +179,8 @@ const NODE_PATH = CHAIN === 'electron-spawn-vendored-node' ? VENDORED_NODE_PATH 
  * differs between the two cells.
  */
 function useElectronChain(spawnNode) {
-  const require_ = createRequire(import.meta.url)
-  const electron = require_('electron')
-  if (typeof electron !== 'string') throw new Error('electron did not resolve to a binary path')
+  const electron = 'node_modules\\electron\\dist\\electron.exe'
+  if (!existsSync(electron)) throw new Error('electron binary is missing')
   const trampoline = join(root, spawnNode ? 'trampoline-spawn.mjs' : 'trampoline.mjs')
   const common = [
     "import { pathToFileURL, fileURLToPath } from 'node:url'",
@@ -170,11 +213,11 @@ function useElectronChain(spawnNode) {
  * `danger-full-access` cell never reaches it, so giving it the flag would make
  * the control differ from the thing it is controlling for.
  */
-function runThroughChain(argv, confined) {
-  if (!confined || CHAIN === 'node') return run(argv)
+function runRestricted(argv) {
+  if (CHAIN === 'node') return runNode(argv.slice(1))
   const env = { ELECTRON_RUN_AS_NODE: '1' }
   if (CHAIN.startsWith('electron-spawn')) env.PROBE_NODE_PATH = NODE_PATH
-  return run(argv, 60_000, env)
+  return runElectron(argv.slice(1), 60_000, env)
 }
 
 /** Crashpad noise #203 already ruled out as a root cause, recorded so the ruling stays checkable. */
@@ -189,14 +232,14 @@ try {
   emit({ field: 'chain', chain: CHAIN })
   if (CHAIN.startsWith('electron')) {
     electronInfo = useElectronChain(CHAIN.startsWith('electron-spawn'))
-    const v = run([electronInfo.electron, '--version'])
+    const v = runElectron(['--version'])
     emit({ field: 'electron', path: electronInfo.electron, version: v.stdout || v.stderr.slice(0, 80), exit: v.status ?? '(null)' })
 
     // Discriminator. If Electron-in-node mode cannot run a one-liner on this
     // host, then every cell below fails for that reason and says nothing about
     // the runner, the token, or pwsh. Without this the two look identical.
-    const alive = run([electronInfo.electron, '-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
-    const nodeVersion = run([NODE_PATH, '-v'])
+    const alive = runElectron(['-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
+    const nodeVersion = USE_VENDORED_NODE ? runVendoredNode(['-v']) : runNode(['-v'])
     emit({ field: 'node_path', path: NODE_PATH, version: nodeVersion.stdout, vendored: CHAIN === 'electron-spawn-vendored-node' ? 'yes' : 'no' })
     // A node that cannot even print its version would make every confined cell
     // below fail for that reason, which reads exactly like a sandbox verdict.
@@ -213,7 +256,7 @@ try {
 
     // And whether the trampoline itself loads the runner at all, unconfined.
     // `--help` exercises argv parsing without creating a token or spawning.
-    const tramp = run([electronInfo.electron, electronInfo.trampoline, '--help'], 60_000,
+    const tramp = runElectron([electronInfo.trampoline, '--help'], 60_000,
       { ELECTRON_RUN_AS_NODE: '1', PROBE_NODE_PATH: NODE_PATH })
     emit({
       field: 'control_trampoline', exit: tramp.status ?? '(null)',
@@ -240,7 +283,10 @@ try {
       const argv = [NODE_PATH, writeFenceScript, outside]
       const isConfined = mode !== 'danger-full-access'
       const confined = isConfined ? ctx.sandbox.confine(argv, { mode, workspaceRoot: root }).argv : argv
-      const outcome = runThroughChain(confined, isConfined)
+      const args = [writeFenceScript, outside]
+      const outcome = isConfined
+        ? runRestricted(confined)
+        : (USE_VENDORED_NODE ? runVendoredNode(args) : runNode(args))
       const wrote = existsSync(outside)
       emit({
         field: 'control_write_fence', mode, exit: outcome.status ?? '(null)',
@@ -259,17 +305,17 @@ try {
   // unconfined, so it is a live read on whether the token is doing anything.
   {
     const bash = findGitBash()
-    if (bash === '') {
+    if (bash === null) {
       emit({ field: 'control_msys', result: 'git_bash_absent' })
       failures += 1
     } else {
       for (const mode of ['danger-full-access', 'workspace-write']) {
-        const argv = [bash, '--noprofile', '--norc', '-c', 'exit 42']
+        const argv = [bash.path, '--noprofile', '--norc', '-c', 'exit 42']
         const isConfined = mode !== 'danger-full-access'
         const confined = isConfined ? ctx.sandbox.confine(argv, { mode, workspaceRoot: root }).argv : argv
-        const outcome = runThroughChain(confined, isConfined)
+        const outcome = isConfined ? runRestricted(confined) : runGitBash(bash.id)
         emit({
-          field: 'control_msys', mode, path: bash,
+          field: 'control_msys', mode, path: bash.path,
           exit: outcome.status ?? '(null)',
           exitHex: outcome.status === null || outcome.status === undefined ? '' : '0x' + (outcome.status >>> 0).toString(16),
           launched: outcome.status === 42 ? 'yes' : 'no',
@@ -280,14 +326,15 @@ try {
     }
   }
 
-  for (const [label, shellPath] of WINDOWS_SHELLS) {
+  for (const { id, label, path: shellPath } of WINDOWS_SHELLS) {
     if (!existsSync(shellPath)) {
       emit({ field: 'probe', shell: label, mode: '-', result: 'shell_absent' })
       continue
     }
     // The probe body must not depend on the shell's own semantics beyond
     // exiting: the question is whether the image starts at all.
-    const argv = [shellPath, '-NoProfile', '-NonInteractive', '-Command', 'exit 42']
+    const shellArgs = ['-NoProfile', '-NonInteractive', '-Command', 'exit 42']
+    const argv = [shellPath, ...shellArgs]
 
     for (const mode of ['danger-full-access', 'workspace-write']) {
       // terminal-bash skips the provider entirely for danger-full-access, so
@@ -302,7 +349,7 @@ try {
         confined = wrapped.argv
         enforcement = wrapped.enforcement
       }
-      const outcome = runThroughChain(confined, isConfined)
+      const outcome = isConfined ? runRestricted(confined) : runPowerShell(id, shellArgs)
       const dllInit = outcome.status === DLL_INIT_FAILED
       emit({
         field: 'probe',
