@@ -50,6 +50,12 @@ jobs:
       - name: install electron
         if: startsWith(matrix.chain, 'electron')
         run: npm install --no-save electron@43.4.0
+      # Electron 43 downloads its platform binary lazily from require(). The
+      # probe executes a fixed literal path, so materialize and verify it here
+      # without passing the resolved path through the workflow environment.
+      - name: materialize electron binary
+        if: startsWith(matrix.chain, 'electron')
+        run: node -e "const fs = require('node:fs'); const electron = require('electron'); fs.accessSync(electron); console.log(electron)"
       - name: vendor an unrelated official node
         if: matrix.chain == 'electron-spawn-vendored-node'
         shell: bash
