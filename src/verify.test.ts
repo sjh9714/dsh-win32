@@ -109,6 +109,8 @@ describe('verify runtime eligibility', () => {
     const report = await verifyInstalledStack({}, fakeDependencies({ platform: 'darwin', findInstalledDsh: discover }))
     expect(report.status).toBe('unsupported')
     expect(report.reason).toBe('native Windows only')
+    expect(report.boundary).toContain('plugin installer')
+    expect(report.boundary).toContain('hook bridges')
     expect(discover).not.toHaveBeenCalled()
   })
 

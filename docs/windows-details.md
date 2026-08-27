@@ -115,6 +115,15 @@ The output is the community `dsh-doctor/v1` envelope ([deepseek-harness#1719](ht
 
 The status literals are `pass`, `warn`, `fail` and `skip`. `node` is two-state on purpose, `pass` inside the declared range and `warn` outside it, which matches npm's EBADENGINE semantics and avoids a `fail` boundary that nothing declares.
 
+## Current upstream boundaries outside the doctor
+
+`doctor` can inspect package declarations and measured local runtime failures. `verify` can exercise the installed official PowerShell component chain in a disposable home and workspace. Neither can safely rewrite a user's profile, install a test plugin, or issue a model-driven tool call merely to claim that these separate upstream paths work.
+
+- [`dsh plugin add` path handling on Windows](https://github.com/deepseek-ai/deepseek-harness/discussions/2485) can split local paths containing spaces; relative paths can also bind to the caller's working directory. Use a published package specifier where possible. For a local package, stage it at a space-free absolute path and read the installed manifest back.
+- [Hook bridge enforcement on Windows](https://github.com/deepseek-ai/deepseek-harness/discussions/2485) can lose an interpreter's blocking exit code through PowerShell. Separately, [`continue:false` can be logged as stop without halting execution](https://github.com/deepseek-ai/deepseek-harness/discussions/1514). A harmless unconditional deny canary after hook edits and DSH upgrades is the only end-to-end proof while those reports remain unresolved.
+
+A green dsh-win32 `verify` report intentionally makes no claim about either path. Its machine-readable `boundary` names the plugin installer and hook bridges as excluded.
+
 ## Writing your own preset on Windows
 
 If your preset mounts `@deepseek-ai/dsh-terminal-bash` without an explicit `shellPath`, the default `/bin/bash` resolves to `C:\Windows\System32\bash.exe` on Windows, the WSL launcher, and the PTY exits at startup. Point it at the real shell instead.

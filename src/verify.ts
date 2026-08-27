@@ -71,7 +71,7 @@ export interface VerifyDependencies {
   cleanup: (root: string) => void
 }
 
-const BOUNDARY = 'the installed model-facing persistent PowerShell tool over the official terminal, subprocess, policy, and local sandbox components; the stock Minimal host/preset is not started'
+const BOUNDARY = 'the installed model-facing persistent PowerShell tool over the official terminal, subprocess, policy, and local sandbox components; the stock Minimal host/preset, plugin installer, and hook bridges are not exercised'
 const OFFICIAL_DECLARATIONS = [
   '@deepseek-ai/dsh-tool-pwsh-persistent',
   '@deepseek-ai/dsh-pwsh-local',
