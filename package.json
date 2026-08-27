@@ -92,7 +92,7 @@
     "@deepseek-ai/dsh-subprocess-local": "0.1.0-rc.6",
     "@deepseek-ai/dsh-terminal": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-terminal-bash": "^0.1.0-rc.6",
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.2.0",
     "typescript": "^5.7.2",
     "vitest": "^3.0.0"
   },
