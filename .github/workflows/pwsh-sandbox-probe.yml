@@ -58,10 +58,8 @@ jobs:
           ver=v20.19.5
           curl -fsSL -o node.zip "https://nodejs.org/dist/$ver/node-$ver-win-x64.zip"
           unzip -q node.zip -d vendored
-          # cygpath, not $PWD: bash on windows-latest reports an MSYS path and
-          # a Windows spawn cannot use it.
-          win=$(cygpath -w "$PWD/vendored/node-$ver-win-x64/node.exe")
-          echo "PROBE_NODE_OVERRIDE=$win" >> "$GITHUB_ENV"
+          # The probe derives this fixed workspace path itself. Do not pass an
+          # executable path through the environment.
           "./vendored/node-$ver-win-x64/node.exe" -v
       - run: npm run build
       # The probe never fails on the workspace-write result: that cell is the

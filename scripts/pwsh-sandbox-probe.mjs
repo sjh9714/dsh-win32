@@ -72,15 +72,13 @@ function describeHost() {
   const ver = run(['cmd', '/c', 'ver'])
   emit({ field: 'windows_build', ver: ver.stdout.replace(/\s+/g, ' ') })
 
-  for (const [label, exe] of [['pwsh', 'pwsh.exe'], ['powershell51', 'powershell.exe']]) {
-    const where = run(['where', exe])
-    const path = where.status === 0 ? where.stdout.split(/\r?\n/)[0].trim() : ''
-    if (path === '') {
+  for (const [label, shellPath] of WINDOWS_SHELLS) {
+    if (!existsSync(shellPath)) {
       emit({ field: 'shell', shell: label, present: 'no' })
       continue
     }
-    const version = run([path, '-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()'])
-    emit({ field: 'shell', shell: label, present: 'yes', path, version: version.stdout, versionExit: version.status })
+    const version = run([shellPath, '-NoProfile', '-NonInteractive', '-Command', '$PSVersionTable.PSVersion.ToString()'])
+    emit({ field: 'shell', shell: label, present: 'yes', path: shellPath, version: version.stdout, versionExit: version.status })
   }
 
   // SecurityCenter2 lists every registered AV product, Defender included.
@@ -92,8 +90,7 @@ function describeHost() {
 
 /** Git Bash, the shell this chain is already known to kill at cygheap init. */
 function findGitBash() {
-  for (const base of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]) {
-    if (base === undefined) continue
+  for (const base of ['C:\\Program Files', 'C:\\Program Files (x86)']) {
     const candidate = join(base, 'Git', 'usr', 'bin', 'bash.exe')
     if (existsSync(candidate)) return candidate
   }
@@ -102,17 +99,27 @@ function findGitBash() {
 
 const root = mkdtempSync(join(process.cwd(), '.pwsh-probe-ws-'))
 
+// This probe intentionally targets clean GitHub-hosted Windows runners. Keep
+// executable locations independent of PATH and environment-controlled absolute
+// paths so a workflow environment cannot choose what this diagnostic executes.
+const WINDOWS_SHELLS = [
+  ['pwsh', 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'],
+  ['powershell51', 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'],
+]
+
 const ctx = new Context()
 await ctx.plugin(LocalSandboxProvider)
 await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: root })
 
 const CHAIN = process.env.SMOKE_CHAIN ?? 'node'
+const SUPPORTED_CHAINS = new Set(['node', 'electron', 'electron-spawn-node', 'electron-spawn-vendored-node'])
+if (!SUPPORTED_CHAINS.has(CHAIN)) throw new Error(`unsupported SMOKE_CHAIN ${JSON.stringify(CHAIN)}`)
 /**
- * Captured before anything swaps what process.execPath means. PROBE_NODE_OVERRIDE
- * points at a Node that did not run this script, which is what a packaged app
- * would ship: a vendored binary from nodejs.org rather than whatever is on PATH.
+ * Captured before anything swaps what process.execPath means. The vendored cell
+ * uses the fixed path created by the workflow rather than an environment path.
  */
-const NODE_PATH = process.env.PROBE_NODE_OVERRIDE ?? process.execPath
+const VENDORED_NODE_PATH = join(process.cwd(), 'vendored', 'node-v20.19.5-win-x64', 'node.exe')
+const NODE_PATH = CHAIN === 'electron-spawn-vendored-node' ? VENDORED_NODE_PATH : process.execPath
 
 /**
  * Point the windows-acl rung at an `ELECTRON_RUN_AS_NODE` trampoline instead of
@@ -183,7 +190,7 @@ try {
     // the runner, the token, or pwsh. Without this the two look identical.
     const alive = run([electronInfo.electron, '-e', "console.log('alive')"], 60_000, { ELECTRON_RUN_AS_NODE: '1' })
     const nodeVersion = run([NODE_PATH, '-v'])
-    emit({ field: 'node_path', path: NODE_PATH, version: nodeVersion.stdout, vendored: process.env.PROBE_NODE_OVERRIDE === undefined ? 'no' : 'yes' })
+    emit({ field: 'node_path', path: NODE_PATH, version: nodeVersion.stdout, vendored: CHAIN === 'electron-spawn-vendored-node' ? 'yes' : 'no' })
     // A node that cannot even print its version would make every confined cell
     // below fail for that reason, which reads exactly like a sandbox verdict.
     if (nodeVersion.status !== 0) {
@@ -266,13 +273,11 @@ try {
     }
   }
 
-  for (const [label, exe] of [['pwsh', 'pwsh.exe'], ['powershell51', 'powershell.exe']]) {
-    const where = run(['where', exe])
-    if (where.status !== 0) {
+  for (const [label, shellPath] of WINDOWS_SHELLS) {
+    if (!existsSync(shellPath)) {
       emit({ field: 'probe', shell: label, mode: '-', result: 'shell_absent' })
       continue
     }
-    const shellPath = where.stdout.split(/\r?\n/)[0].trim()
     // The probe body must not depend on the shell's own semantics beyond
     // exiting: the question is whether the image starts at all.
     const argv = [shellPath, '-NoProfile', '-NonInteractive', '-Command', 'exit 42']
