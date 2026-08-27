@@ -23,8 +23,8 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
@@ -115,8 +115,8 @@ jobs:
       matrix: ${{ fromJSON(github.event_name == 'schedule' && '{"node":["22.19.0"],"installer":["npm","pnpm-strict"]}' || '{"node":["22.19.0","24"],"installer":["npm","pnpm-strict"]}') }}
     name: official live acceptance (${{ matrix.installer }}, Node ${{ matrix.node }})
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       - run: npm install
@@ -186,8 +186,8 @@ jobs:
     # a new signature is a real failure and now reaches the shared CI gate.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
@@ -229,8 +229,8 @@ jobs:
     # where MSYS bash dies at cygheap init. Gate passed 2026-08-16; now required.
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm install
@@ -261,7 +261,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
