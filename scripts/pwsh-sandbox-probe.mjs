@@ -27,7 +27,7 @@
  * Run after `npm run build`: node scripts/pwsh-sandbox-probe.mjs
  */
 
-import { spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { release } from 'node:os'
@@ -46,18 +46,23 @@ function emit(fields) {
 }
 
 function run(argv, timeoutMs = 60_000, extraEnv = undefined) {
-  const result = spawnSync(argv[0], argv.slice(1), {
+  const options = {
     encoding: 'utf8',
     timeout: timeoutMs,
     windowsHide: true,
     env: extraEnv === undefined ? process.env : { ...process.env, ...extraEnv },
-  })
-  return {
-    status: result.status,
-    signal: result.signal,
-    error: result.error === undefined ? '' : String(result.error.message),
-    stdout: (result.stdout ?? '').trim(),
-    stderr: (result.stderr ?? '').trim(),
+  }
+  try {
+    return { status: 0, signal: null, error: '', stdout: execFileSync(argv[0], argv.slice(1), options).trim(), stderr: '' }
+  } catch (error) {
+    const status = typeof error?.status === 'number' ? error.status : null
+    return {
+      status,
+      signal: error?.signal ?? null,
+      error: status === null ? String(error?.message ?? error) : '',
+      stdout: String(error?.stdout ?? '').trim(),
+      stderr: String(error?.stderr ?? '').trim(),
+    }
   }
 }
 
@@ -98,6 +103,8 @@ function findGitBash() {
 }
 
 const root = mkdtempSync(join(process.cwd(), '.pwsh-probe-ws-'))
+const writeFenceScript = join(root, 'write-outside.mjs')
+writeFileSync(writeFenceScript, "import { writeFileSync } from 'node:fs'; writeFileSync(process.argv[2], '')\n", 'utf8')
 
 // This probe intentionally targets clean GitHub-hosted Windows runners. Keep
 // executable locations independent of PATH and environment-controlled absolute
@@ -228,9 +235,9 @@ try {
     // is a mkdtemp child of cwd, so cwd itself is outside the grant.
     const outside = join(process.cwd(), `probe-outside-${process.pid}.txt`)
     for (const mode of ['danger-full-access', 'workspace-write']) {
-      // `copy /y NUL <file>` creates the file with no shell redirection, which
-      // `cmd /c` was mis-parsing when the redirect and the quoted path met.
-      const argv = ['cmd', '/c', 'copy', '/y', 'NUL', outside]
+      // Pass the destination as an argv value to a Node file operation. No
+      // command shell interprets the workspace path.
+      const argv = [NODE_PATH, writeFenceScript, outside]
       const isConfined = mode !== 'danger-full-access'
       const confined = isConfined ? ctx.sandbox.confine(argv, { mode, workspaceRoot: root }).argv : argv
       const outcome = runThroughChain(confined, isConfined)
