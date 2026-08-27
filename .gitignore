@@ -9,3 +9,4 @@ handoff/
 demo/node_modules/
 demo/_frames/
 session-*.md
+.dsh-win32-star-prompted
