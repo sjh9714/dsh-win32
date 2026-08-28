@@ -42,6 +42,23 @@ const SNAPSHOT = [
 ]
 
 describe('WindowsProcessInspector', () => {
+  it.each([0, -1])('rejects non-positive pid %i before touching Windows process APIs', pid => {
+    const inspector = new WindowsProcessInspector({
+      exec() { throw new Error('must not execute') },
+      kill() { throw new Error('must not probe') },
+      terminate() { throw new Error('must not terminate') },
+      now() { throw new Error('must not read the clock') },
+      consoleProcessList() { throw new Error('must not inspect a console') },
+    })
+
+    expect(inspector.processTree(pid)).toEqual([])
+    expect(inspector.isAlive({ pid, started: '0' })).toBe(false)
+    expect(inspector.foregroundPgid(pid)).toBeUndefined()
+    expect(() => inspector.signalProcess({ pid, started: '0' }, 'SIGTERM')).not.toThrow()
+    expect(() => inspector.signalProcess({ pid, started: '0' }, 'SIGKILL')).not.toThrow()
+    expect(() => inspector.signalGroup(pid, 'SIGKILL')).not.toThrow()
+  })
+
   it('builds the tree children-first with the root last', () => {
     const tree = fakeInspector(SNAPSHOT).processTree(100)
     expect(tree.map(m => m.pid)).toEqual([300, 310, 200, 100])

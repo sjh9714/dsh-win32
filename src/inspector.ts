@@ -139,6 +139,7 @@ export class WindowsProcessInspector {
 
   /** Root plus current transitive descendants, children first. */
   processTree(rootPid: number): ProcessIdentity[] {
+    if (!(rootPid > 0)) return []
     const rows = this.snapshot()
     const root = rows.find(row => row.pid === rootPid)
     if (root === undefined) return []
@@ -188,6 +189,7 @@ export class WindowsProcessInspector {
   }
 
   isAlive(identity: ProcessIdentity): boolean {
+    if (!(identity.pid > 0)) return false
     // kill(pid, 0) is necessary-but-not-sufficient: it short-circuits only the
     // dead case (~0.002ms vs ~900ms, #8); a live pid still needs the
     // start-identity check against the (TTL-cached) snapshot for pid recycling.
@@ -212,6 +214,7 @@ export class WindowsProcessInspector {
    * PROMPT_COMMAND marker it inherited" (#7).
    */
   foregroundPgid(shellPid: number): number | undefined {
+    if (!(shellPid > 0)) return undefined
     const list = this.internals.consoleProcessList(shellPid)
     if (list === undefined) {
       this.forgetTerminal(shellPid)
@@ -320,6 +323,7 @@ export class WindowsProcessInspector {
    * kill.
    */
   private taskkill(args: string[], pid: number): void {
+    if (!(pid > 0)) return
     try {
       this.internals.exec('taskkill', args)
       return
@@ -346,6 +350,7 @@ export class WindowsProcessInspector {
   }
 
   signalProcess(identity: ProcessIdentity, signal: 'SIGTERM' | 'SIGKILL'): void {
+    if (!(identity.pid > 0)) return
     // No tree to walk for a single pid, so the forceful form is TerminateProcess
     // rather than a taskkill spawn. Teardown signals every member twice, and
     // spawning taskkill costs ~1300ms on a busy box even for a pid that does not
@@ -359,6 +364,7 @@ export class WindowsProcessInspector {
 
   /** TerminateProcess, treating an already-exited target as the success it is. */
   private forceTerminate(pid: number): void {
+    if (!(pid > 0)) return
     try {
       this.internals.terminate(pid)
     } catch {
@@ -372,6 +378,7 @@ export class WindowsProcessInspector {
    * is the closest Windows has to signalling a process group.
    */
   signalGroup(pgid: number, signal: { toString(): string }): void {
+    if (!(pgid > 0)) return
     const force = String(signal) === 'SIGKILL' ? ['/F'] : []
     for (const target of this.groupMembers(pgid)) {
       this.taskkill(['/PID', String(target), '/T', ...force], target)
