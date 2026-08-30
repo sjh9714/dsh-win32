@@ -72,6 +72,26 @@ export interface VerifyDependencies {
 }
 
 const BOUNDARY = 'the installed model-facing persistent PowerShell tool over the official terminal, subprocess, policy, and local sandbox components; the stock Minimal host/preset, plugin installer, and hook bridges are not exercised'
+const VERIFY_PROGRESS_FILE = 'worker-progress.json'
+const VERIFY_PROGRESS_STAGES = [
+  'worker_started',
+  'installed_tree_validated',
+  'outside_control_passed',
+  'official_components_starting',
+  'official_components_composed',
+  'powershell_launch_starting',
+  'powershell_launched',
+  'persistent_state_passed',
+  'workspace_write_passed',
+  'outside_write_blocked',
+  'denial_recovery_passed',
+  'cancellation_recovery_passed',
+  'repeat_lifecycle_passed',
+  'runtime_teardown_starting',
+  'worker_finished',
+] as const
+type VerifyProgressStage = typeof VERIFY_PROGRESS_STAGES[number]
+const VERIFY_PROGRESS_STAGE_SET = new Set<string>(VERIFY_PROGRESS_STAGES)
 const OFFICIAL_DECLARATIONS = [
   '@deepseek-ai/dsh-tool-pwsh-persistent',
   '@deepseek-ai/dsh-pwsh-local',
@@ -417,6 +437,18 @@ export function isolatedEnvironment(input: WorkerInput, source: NodeJS.ProcessEn
     DSH_WIN32_VERIFY_WORKSPACE: input.workspace,
     DSH_WIN32_VERIFY_STATE_DIRECTORY: input.stateDirectory,
     DSH_WIN32_VERIFY_OUTSIDE_FILE: input.outsideFile,
+    DSH_WIN32_VERIFY_PROGRESS_FILE: join(input.runtimeTemp, VERIFY_PROGRESS_FILE),
+  }
+}
+
+function readWorkerProgress(runtimeTemp: string): VerifyProgressStage | undefined {
+  try {
+    const value = JSON.parse(readFileSync(join(runtimeTemp, VERIFY_PROGRESS_FILE), 'utf8')) as { stage?: unknown }
+    return typeof value.stage === 'string' && VERIFY_PROGRESS_STAGE_SET.has(value.stage)
+      ? value.stage as VerifyProgressStage
+      : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -491,9 +523,14 @@ export function runWorker(input: WorkerInput, options: RunWorkerOptions = {}): P
       const signal = directChildSignaled
         ? 'only its retained direct-child handle was signaled'
         : 'its retained direct-child handle could not be signaled safely'
+      const lastCheckpoint = readWorkerProgress(input.runtimeTemp)
+      const progress = lastCheckpoint === undefined ? '' : `; last safe worker checkpoint: ${lastCheckpoint}`
+      const nestedSandboxHint = terminationReason === 'timeout'
+        ? '; if verify was launched inside another Workspace Write or Windows ACL sandbox, rerun only this verify command outside that outer sandbox because verify creates and tests its own confined child'
+        : ''
       return new WorkerTerminationError(
         check,
-        `${reason}; ${signal}; temporary-root and descendant containment are unconfirmed`,
+        `${reason}${progress}; ${signal}; temporary-root and descendant containment are unconfirmed${nestedSandboxHint}`,
       )
     }
     const detachUnclosedChild = (): void => {
@@ -804,6 +841,15 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
   const workspace = requireEnvironment('DSH_WIN32_VERIFY_WORKSPACE')
   const stateDirectory = requireEnvironment('DSH_WIN32_VERIFY_STATE_DIRECTORY')
   const outsideFile = requireEnvironment('DSH_WIN32_VERIFY_OUTSIDE_FILE')
+  const progressFile = requireEnvironment('DSH_WIN32_VERIFY_PROGRESS_FILE')
+  const checkpoint = (stage: VerifyProgressStage): void => {
+    try {
+      writeFileSync(progressFile, JSON.stringify({ stage }), 'utf8')
+    } catch {
+      // Progress is diagnostic-only and must never weaken or block acceptance.
+    }
+  }
+  checkpoint('worker_started')
   const checks: VerifyCheck[] = []
   const pass = (name: string, detail: string): void => { checks.push({ name, status: 'pass', detail }) }
   let harness: TerminalHarness | undefined
@@ -824,14 +870,18 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       throw new CheckFailure('installed_dsh', `installed @deepseek-ai/dsh ${manifest.version} does not declare the complete official Windows stack`)
     }
     pass('installed_dsh', `using installed @deepseek-ai/dsh ${manifest.version}, not registry metadata`)
+    checkpoint('installed_tree_validated')
 
     writeFileSync(outsideFile, 'control', 'utf8')
     if (readFileSync(outsideFile, 'utf8') !== 'control') throw new Error('outside control mismatch')
     unlinkSync(outsideFile)
     pass('outside_control', 'the isolated outside target is writable by the normal parent token')
+    checkpoint('outside_control_passed')
 
+    checkpoint('official_components_starting')
     harness = await composeOfficialHarness(tree)
     pass('official_components', 'loaded and composed the official components through that installed DSH dependency tree')
+    checkpoint('official_components_composed')
     const { ctx, agent } = harness
     if (ctx.get('systemPrompt') === undefined || ctx.get('tools') === undefined) {
       throw new CheckFailure('service_preflight', 'the stock systemPrompt/tools service pair is not active')
@@ -846,6 +896,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       }
     }
 
+    checkpoint('powershell_launch_starting')
     await checked('powershell_launch', 'PowerShell launched through the confined official persistent-tool chain', async () => {
       await expectToolMarker(
         ctx,
@@ -856,6 +907,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       if (ctx.terminals.list(agent).length !== 1) throw new Error('persistent session absent')
     })
     pass('powershell_7', 'the same child is 64-bit PowerShell 7+, has PSHOME, and reports an existing executable path')
+    checkpoint('powershell_launched')
 
     const firstSession = String(ctx.terminals.list(agent)[0]?.sessionId ?? '')
     await checked('persistent_state', 'two model-facing pwsh calls retained cwd and environment in one PTY', async () => {
@@ -870,6 +922,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       if (firstSession === '' || current !== firstSession) throw new Error('tool changed PTY')
       if (readFileSync(join(stateDirectory, 'state-location.txt'), 'utf8') !== 'cwd-ok') throw new Error('cwd state mismatch')
     })
+    checkpoint('persistent_state_passed')
 
     await checked('workspace_write_read', 'exact content was written and read inside the temporary workspace', async () => {
       await expectToolMarker(
@@ -880,6 +933,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       )
       if (readFileSync(join(stateDirectory, 'inside.txt'), 'utf8') !== 'inside-ok') throw new Error('inside content mismatch')
     })
+    checkpoint('workspace_write_passed')
 
     await checked('outside_write_blocked', 'the control-writable target was denied under Workspace Write and no file was created', async () => {
       await expectToolMarker(
@@ -890,11 +944,13 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       )
       if (existsSync(outsideFile)) throw new Error('outside file exists')
     })
+    checkpoint('outside_write_blocked')
 
     await checked('denial_recovery', 'the same persistent-tool PTY remained usable after the denied write', async () => {
       await expectToolMarker(ctx, agent, "[Console]::WriteLine(('DSH_VERIFY_DENIAL_' + 'RECOVERY_OK'))", 'DSH_VERIFY_DENIAL_RECOVERY_OK')
       if (String(ctx.terminals.list(agent)[0]?.sessionId ?? '') !== firstSession) throw new Error('tool changed PTY')
     })
+    checkpoint('denial_recovery_passed')
 
     await checked('cancel_recovery', 'cancellation tore down the first PTY and the next pwsh call spawned a working replacement', async () => {
       await cancelTool(ctx, agent)
@@ -902,11 +958,13 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       const replacement = String(ctx.terminals.list(agent)[0]?.sessionId ?? '')
       if (replacement === '' || replacement === firstSession) throw new Error('replacement PTY absent')
     })
+    checkpoint('cancellation_recovery_passed')
 
     await checked('repeat_lifecycle', 'two persistent PTYs completed spawn, cancellation, and awaited teardown', async () => {
       await cancelTool(ctx, agent)
       if (ctx.terminals.list(agent).length !== 0) throw new Error('second PTY remains')
     })
+    checkpoint('repeat_lifecycle_passed')
   } catch (error) {
     const failure = error instanceof CheckFailure
       ? error
@@ -914,6 +972,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
     checks.push({ name: failure.check, status: 'fail', detail: failure.safeDetail })
   } finally {
     if (harness !== undefined) {
+      checkpoint('runtime_teardown_starting')
       try {
         harness.disposeAgent()
         await withTimeout(harness.ctx.fiber.dispose(), 20_000)
@@ -930,6 +989,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
     })
   }
   const ok = checks.length > 0 && checks.every(check => check.status === 'pass')
+  checkpoint('worker_finished')
   return {
     schema: 'dsh-win32/verify/v1',
     status: ok ? 'pass' : 'fail',

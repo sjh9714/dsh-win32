@@ -65,6 +65,7 @@ npx dsh-win32 doctor --legacy
 
 - 当前路径检查 npm 上发布的 DSH package metadata，不能证明另一个缓存中的 launcher 正在运行同一版本
 - `verify` 只验收官方 PowerShell、terminal、subprocess、Workspace Write policy 与 ACL sandbox 组件链，不会启动完整 Minimal host，也不会验证插件安装或 hook 强制执行
+- `verify` 会自行创建 Workspace Write policy 和受 Windows ACL 约束的 PowerShell 子进程。如果调用它的 agent 已经位于另一层 Workspace Write 或 Windows ACL 沙箱内，请只为这一条 verify 命令批准一次非沙箱/full-access 执行；嵌套的受限 token/ConPTY 可能在 PowerShell 启动前停住。内层验收边界不会被绕过，工作区外写入仍必须被拒绝。
 - Windows 上的本地 `dsh plugin add` 路径可能因空格被拆分；本地包请暂存到不含空格的绝对路径，并回读实际安装的 package（[上游 #2485](https://github.com/deepseek-ai/deepseek-harness/discussions/2485)）
 - hook 日志不能单独证明拦截生效；Windows PowerShell 可能丢失 interpreter hook 的阻塞退出码，而 `{"continue": false}` 也可能只记录 stop 却继续运行。修改 hook 或升级 DSH 后，请用无害的必拒绝 canary 确认目标动作真的被拦住（[上游 #2485](https://github.com/deepseek-ai/deepseek-harness/discussions/2485)、[#1514](https://github.com/deepseek-ai/deepseek-harness/discussions/1514)）
 - 推荐 PowerShell 7，但 dsh-win32 不会自动安装
