@@ -72,6 +72,8 @@ No user DSH profile, config, workspace, or PowerShell profile is loaded or chang
 
 If a timeout or output limit leaves worker or descendant containment unconfirmed, verification fails and preserves the isolated snapshot instead of deleting files under a potentially live process.
 
+`verify` creates its own Workspace Write policy and Windows ACL-confined PowerShell child. If you run it from an agent that is already inside another Workspace Write or Windows ACL sandbox, approve one unsandboxed/full-access execution for **this verify command only**; otherwise the nested restricted-token/ConPTY layers can stall before PowerShell launches. This does not bypass the acceptance boundary: the inner child under test remains confined, and the outside-write denial is still required to pass. Worker timeouts report only a fixed, path-free progress checkpoint so nested-launch stalls can be distinguished without exposing terminal output or environment values.
+
 The boundary is deliberate: this composes the installed official components and invokes the real persistent tool, but it does not start the complete stock Minimal host/preset, run the plugin installer, execute hook bridges, or make a model request. A pass must therefore be read as component-chain acceptance, not as an end-to-end stock-session or hook-enforcement claim.
 
 The repository CI installs `@deepseek-ai/dsh@latest` from scratch and runs this acceptance on real Windows. Pushes, pull requests, and manual runs cover npm and strict pnpm layouts on Node 22.19 and 24. A weekly upstream watch retains both installers on Node 22.19, so a new DSH publication is checked even when dsh-win32 itself has not changed.

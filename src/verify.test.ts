@@ -215,6 +215,7 @@ describe('verify isolation orchestration with fakes', () => {
       expect(env.HOMEDRIVE).not.toBe('Z:')
       expect(env.HOMEPATH).not.toBe('\\real-user')
       expect(env.TEMP).toBe(input.runtimeTemp)
+      expect(env.DSH_WIN32_VERIFY_PROGRESS_FILE).toBe(join(input.runtimeTemp, 'worker-progress.json'))
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -234,6 +235,9 @@ describe('verify isolation orchestration with fakes', () => {
 
   it('settles after a bounded post-kill grace and preserves an uncontained snapshot', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-win32-unclosed-worker-'))
+    const runtimeTemp = join(root, 'runtime-temp')
+    mkdirSync(runtimeTemp, { recursive: true })
+    writeFileSync(join(runtimeTemp, 'worker-progress.json'), JSON.stringify({ stage: 'powershell_launch_starting' }))
     const stdout = new PassThrough()
     const child = Object.assign(new EventEmitter(), {
       stdout,
@@ -251,7 +255,7 @@ describe('verify isolation orchestration with fakes', () => {
           workspace: join(root, 'workspace'),
           stateDirectory: join(root, 'workspace', 'state'),
           outsideFile: join(root, 'outside.txt'),
-          runtimeTemp: join(root, 'runtime-temp'),
+          runtimeTemp,
         }),
         runWorker: input => runWorker(input, {
           spawnWorker: (() => child) as unknown as typeof spawn,
@@ -271,6 +275,8 @@ describe('verify isolation orchestration with fakes', () => {
       expect(cleanup).not.toHaveBeenCalled()
       expect(report.status).toBe('fail')
       expect(report.checks.some(check => check.name === 'worker_timeout')).toBe(true)
+      expect(report.checks.find(check => check.name === 'worker_timeout')?.detail).toContain('powershell_launch_starting')
+      expect(report.checks.find(check => check.name === 'worker_timeout')?.detail).toContain('outside that outer sandbox')
       expect(report.checks.at(-1)).toEqual({
         name: 'temporary_snapshot_preserved',
         status: 'fail',
@@ -286,6 +292,9 @@ describe('verify isolation orchestration with fakes', () => {
 
   it('preserves the snapshot when the worker emits an error after timeout signaling', async () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-win32-errored-worker-'))
+    const runtimeTemp = join(root, 'runtime-temp')
+    mkdirSync(runtimeTemp, { recursive: true })
+    writeFileSync(join(runtimeTemp, 'worker-progress.json'), JSON.stringify({ stage: 'secret C:\\Users\\private' }))
     const child = Object.assign(new EventEmitter(), {
       stdout: new PassThrough(),
       exitCode: null,
@@ -305,7 +314,7 @@ describe('verify isolation orchestration with fakes', () => {
           workspace: join(root, 'workspace'),
           stateDirectory: join(root, 'workspace', 'state'),
           outsideFile: join(root, 'outside.txt'),
-          runtimeTemp: join(root, 'runtime-temp'),
+          runtimeTemp,
         }),
         runWorker: input => runWorker(input, {
           spawnWorker: (() => child) as unknown as typeof spawn,
@@ -320,6 +329,8 @@ describe('verify isolation orchestration with fakes', () => {
         'worker_timeout',
         'temporary_snapshot_preserved',
       ])
+      expect(JSON.stringify(report)).not.toContain('private')
+      expect(JSON.stringify(report)).not.toContain('secret')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
