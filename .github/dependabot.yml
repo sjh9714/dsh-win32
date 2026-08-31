@@ -9,6 +9,15 @@ updates:
       time: '03:10'
       timezone: Asia/Seoul
     open-pull-requests-limit: 5
+    # These fixtures must move together with the legacy <rc.7 subprocess
+    # support boundary. Newer terminal-bash versions require subprocess rc.8.
+    ignore:
+      - dependency-name: '@deepseek-ai/dsh-subprocess'
+        versions: ['>=0.1.0-rc.7']
+      - dependency-name: '@deepseek-ai/dsh-subprocess-local'
+        versions: ['>=0.1.0-rc.7']
+      - dependency-name: '@deepseek-ai/dsh-terminal-bash'
+        versions: ['>=0.1.0-rc.7']
     groups:
       npm-minor-and-patch:
         patterns:

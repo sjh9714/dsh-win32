@@ -91,10 +91,10 @@
     "@deepseek-ai/dsh-subprocess": "0.1.0-rc.6",
     "@deepseek-ai/dsh-subprocess-local": "0.1.0-rc.6",
     "@deepseek-ai/dsh-terminal": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-terminal-bash": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-terminal-bash": "0.1.0-rc.6",
     "@types/node": "^22.10.0",
     "typescript": "^7.0.2",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "iconv-lite": "^0.7.3"
