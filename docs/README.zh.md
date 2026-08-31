@@ -14,6 +14,8 @@ npx dsh-win32 setup
 
 [English](../README.md) · [Windows 实证与旧版细节](./windows-details.md)
 
+让 coding agent 帮忙时，可以复制[安装与验收指令](https://github.com/sjh9714/dsh-win32/blob/master/docs/agent-setup.md#中文)。第一次排错请看[Windows PowerShell 故障：先诊断，再验证](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md)。
+
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
 <a href="https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sjh9714/dsh-win32/ci.yml?style=flat-square&label=CI" alt="CI"></a>
@@ -48,6 +50,12 @@ npx dsh-win32 fix
 `doctor` 检查官方 Windows stack 和本机已知故障。JSON 输出遵循 `dsh-doctor/v1`。
 
 `fix` 只处理已知损坏或真实加载失败的 koffi 版本，修复后会再次执行加载验证。
+
+## Windows 正常后，再搬现有配置
+
+[dsh-movein](https://github.com/sjh9714/dsh-movein) 可以预演搬入 Claude Code、Codex 或 OpenCode 配置。它是可选的另一项操作；dsh-win32 不会自动安装它。
+
+在需要搬入的项目目录中先运行 `npx dsh-movein`，查看目标、冲突和不支持项，确认后才使用 `--apply`。搬入配置不代表 hook 强制生效，也不代表完整 Minimal 会话已经验收。
 
 ## 旧版 DSH
 
