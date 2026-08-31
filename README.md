@@ -14,6 +14,8 @@ It does not install Git, PowerShell, busybox, WSL, or another DSH bundle on the 
 
 [中文](./docs/README.zh.md) · [Windows evidence and legacy details](./docs/windows-details.md)
 
+Using a coding agent? [Copy the setup and verification request](https://github.com/sjh9714/dsh-win32/blob/master/docs/agent-setup.md). For a guided walkthrough, see [Windows troubleshooting in Chinese](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md).
+
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
 <a href="https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sjh9714/dsh-win32/ci.yml?style=flat-square&label=CI" alt="CI"></a>
@@ -98,6 +100,18 @@ Two current DSH control paths sit outside repairs that dsh-win32 can safely appl
 - Hook logs are not proof that enforcement happened. An interpreter-backed Claude Code hook can lose its blocking exit code through PowerShell on Windows ([upstream #2485](https://github.com/deepseek-ai/deepseek-harness/discussions/2485)), while a `{"continue": false}` result can be recorded as `decision: stop` without halting the run ([upstream #1514](https://github.com/deepseek-ai/deepseek-harness/discussions/1514)). After changing hooks or upgrading DSH, run a harmless unconditional deny canary and confirm the target action is actually blocked.
 
 `doctor` cannot prove either behavior from package metadata, and `verify` deliberately avoids user profiles, hook configuration, model requests, and plugin installation. They therefore do not report these upstream paths as passing. The canary remains a user-controlled end-to-end check until DSH exposes a safe, isolated hook acceptance interface.
+
+## Bring an existing setup
+
+Once the Windows checks pass, [dsh-movein](https://github.com/sjh9714/dsh-movein) can preview importing an existing Claude Code, Codex, or OpenCode setup. It is optional and separate from Windows setup: dsh-win32 does not install it for you.
+
+Start with a preview in the project you want to move. Do not add `--apply` until you have reviewed the destinations, conflicts, and unsupported settings.
+
+```powershell
+npx dsh-movein
+```
+
+Moving configuration does not prove hook enforcement or a complete stock Minimal session. Keep the verification boundaries above.
 
 ## Legacy DSH
 
