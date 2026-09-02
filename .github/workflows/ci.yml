@@ -235,9 +235,20 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
-      - name: fetch busybox-w32
-        shell: bash
-        run: curl -fL -o busybox64.exe https://frippery.org/files/busybox/busybox64.exe && ./busybox64.exe sh -c 'echo busybox alive'
+      - name: fetch pinned busybox-w32
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'busybox-w32.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'busybox-w32'
+          curl.exe -fL --retry 5 --retry-all-errors --retry-delay 2 -o $archive https://community.chocolatey.org/api/v2/package/busybox/5579.0.0
+          if ($LASTEXITCODE -ne 0) { throw "busybox-w32 download failed with exit $LASTEXITCODE" }
+          Expand-Archive -LiteralPath $archive -DestinationPath $extract
+          Copy-Item (Join-Path $extract 'tools/busybox64.exe') ./busybox64.exe
+          $actual = (Get-FileHash ./busybox64.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = '1255109d6335adf8374888f9c9fc70221f098cb6bf03f183e710e71179ecad78'
+          if ($actual -ne $expected) { throw "busybox-w32 checksum mismatch: $actual" }
+          ./busybox64.exe sh -c 'echo busybox alive'
+          if ($LASTEXITCODE -ne 0) { throw "busybox-w32 smoke failed with exit $LASTEXITCODE" }
       - name: busybox ash under danger-full-access (control)
         timeout-minutes: 6
         shell: bash
