@@ -25,9 +25,7 @@ Read https://github.com/sjh9714/dsh-win32 before running commands.
 6. Report the actual installed versions and separate passed, failed, and unrun
    checks. verify covers the official component chain, not the complete Minimal
    host, plugin installation, hook enforcement, or a model-driven session.
-7. If setup emits USER_CONFIRMATION_REQUIRED, ask me the repository Star question
-   and wait for my explicit answer. Never infer Yes from this setup request.
-8. Stop on an unresolved failure. Do not repeatedly reinstall, lower release-age
+7. Stop on an unresolved failure. Do not repeatedly reinstall, lower release-age
    policy, publish logs, or import another setup without a separate request.
 ```
 
@@ -58,8 +56,6 @@ Once Windows is working, [Movein's separate migration request](https://github.co
    启动验收，仅申请这一条命令的权限；不要降低 profile 的安全设置。
 6. 分别报告真实版本、通过、失败和未执行项。verify 只验证官方组件链，
    不证明完整 Minimal host、插件安装、hook 强制执行或模型会话正常。
-7. 遇到 USER_CONFIRMATION_REQUIRED 就向我询问 Star 问题，等待明确回答；
-   不要把“安装”当成同意 Star。
-8. 未解决的失败必须停止；不要反复重装、降低发布等待期、公开日志，
+7. 未解决的失败必须停止；不要反复重装、降低发布等待期、公开日志，
    或未经另外请求就搬入其他工具的配置。
 ```

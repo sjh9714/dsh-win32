@@ -1,10 +1,13 @@
 {
   "name": "dsh-win32",
-  "version": "0.17.4",
+  "version": "0.17.5",
   "description": "Fix and diagnose DeepSeek Harness on native Windows. Official PowerShell, Workspace Write, shortcuts, and legacy preset repair. No WSL.",
   "type": "module",
   "license": "MIT",
-  "repository": "github:sjh9714/dsh-win32",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sjh9714/dsh-win32.git"
+  },
   "homepage": "https://github.com/sjh9714/dsh-win32#readme",
   "keywords": [
     "dsh",
@@ -112,5 +115,13 @@
     "@deepseek-ai/dsh-fs-sandbox": {
       "optional": true
     }
+  },
+  "directories": {
+    "doc": "docs",
+    "lib": "lib"
+  },
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/sjh9714/dsh-win32/issues"
   }
 }

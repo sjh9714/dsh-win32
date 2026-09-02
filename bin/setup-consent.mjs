@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { createInterface } from 'node:readline/promises'
 import process from 'node:process'
 
 const WIN = process.platform === 'win32'
@@ -18,19 +17,6 @@ const CI_SETUP_ENV = [
   'JENKINS_URL',
   'TEAMCITY_VERSION',
   'TF_BUILD',
-]
-
-const AGENT_SETUP_ENV = [
-  'CODEX_THREAD_ID',
-  'CODEX_SESSION_ID',
-  'CODEX_SANDBOX',
-  'CODEX_CI',
-  'CLAUDECODE',
-  'CLAUDE_CODE_ENTRYPOINT',
-  'CURSOR_TRACE_ID',
-  'CURSOR_AGENT',
-  'OPENCODE',
-  'GEMINI_CLI',
 ]
 
 function tryExec(file, args) {
@@ -52,17 +38,6 @@ export function isCISetupEnvironment(env = process.env) {
   return CI_SETUP_ENV.some((name) => environmentFlagIsActive(env, name))
 }
 
-export function isAgentSetupEnvironment(env = process.env) {
-  return AGENT_SETUP_ENV.some((name) => environmentFlagIsActive(env, name))
-}
-
-export function parseSetupStarAnswer(answer) {
-  const normalized = answer.trim().toLowerCase()
-  if (normalized === '' || normalized === 'y') return true
-  if (normalized === 'n') return false
-  return undefined
-}
-
 function recordSetupStarAnswer(home, wantsStar) {
   const marker = join(home, '.dsh-win32-star-prompted')
   try {
@@ -76,16 +51,6 @@ function recordSetupStarAnswer(home, wantsStar) {
 
 function writeLine(output, message) {
   output.write(`${message}\n`)
-}
-
-function printDeferredStarConsent(output) {
-  writeLine(output, 'USER_CONFIRMATION_REQUIRED: Star dsh-win32 on GitHub?')
-  writeLine(output, 'Ask the user: Star dsh-win32? Yes / No')
-  writeLine(output, 'Yes adds a public Star using the GitHub account authenticated in gh; if gh is unavailable, it opens the repository for the final click.')
-  writeLine(output, 'Do not run either confirmation command until the user explicitly answers Yes or No.')
-  writeLine(output, 'If Yes: npx dsh-win32 star --yes')
-  writeLine(output, 'If No:  npx dsh-win32 star --no')
-  writeLine(output, 'No marker was written and no GitHub account was changed.')
 }
 
 function applySetupStarAnswer(wantsStar, {
@@ -161,60 +126,4 @@ export function runSetupStarConfirmation(args, {
     return 0
   }
   return applySetupStarAnswer(wantsStar, { output, ...options })
-}
-
-export async function offerSetupStar({
-  input = process.stdin,
-  output = process.stdout,
-  env = process.env,
-  home = DSH_HOME,
-  win = WIN,
-  probe = tryExec,
-  execute = execFileSync,
-} = {}) {
-  if (isCISetupEnvironment(env)) return
-
-  const marker = join(home, '.dsh-win32-star-prompted')
-  if (existsSync(marker)) return
-  if (isAgentSetupEnvironment(env) || !input.isTTY || !output.isTTY) {
-    printDeferredStarConsent(output)
-    return
-  }
-
-  const prompt = createInterface({ input, output })
-  let promptClosed = false
-  const closed = new Promise((resolveClosed) => {
-    prompt.once('close', () => {
-      promptClosed = true
-      resolveClosed(undefined)
-    })
-  })
-  const failed = new Promise((resolveFailed) => {
-    prompt.once('error', () => resolveFailed(undefined))
-  })
-  let wantsStar
-  try {
-    while (wantsStar === undefined) {
-      const answer = await Promise.race([
-        prompt.question('  Star dsh-win32 on GitHub? [Y/n] (Enter = Yes; Yes adds a public Star using your authenticated gh account, or opens the repository if gh is unavailable) '),
-        closed,
-        failed,
-      ])
-      if (answer === undefined) return
-      wantsStar = parseSetupStarAnswer(answer)
-      if (wantsStar === undefined) writeLine(output, '  enter y or n, or press Enter for Yes')
-    }
-  } catch {
-    return
-  } finally {
-    if (!promptClosed) {
-      try {
-        prompt.close()
-      } catch {
-        // An input error already closed the interface.
-      }
-    }
-  }
-
-  applySetupStarAnswer(wantsStar, { home, win, output, probe, execute })
 }

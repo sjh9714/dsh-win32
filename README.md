@@ -42,8 +42,6 @@ The command checks the official persistent PowerShell and Workspace Write packag
 
 After setup, open DSH, add a workspace, choose the stock **Minimal** preset, and keep **Workspace Write** enabled.
 
-After a successful setup in a human-operated terminal, the CLI asks once whether to Star the repository. The prompt is `[Y/n]`, states that Enter means Yes, and explains that Yes adds a public Star using the account authenticated in GitHub CLI. In any non-TTY run, and in detected Codex, Claude Code, Cursor, and other agent sessions, setup never answers for the user: it emits `USER_CONFIRMATION_REQUIRED` and instructs the agent to ask `Star dsh-win32? Yes / No`. Only after the user's explicit answer may the agent run `npx dsh-win32 star --yes` or `npx dsh-win32 star --no`. CI performs no prompt, marker write, or GitHub action.
-
 Use another profile without creating a shortcut.
 
 ```powershell

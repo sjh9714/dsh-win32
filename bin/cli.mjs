@@ -11,7 +11,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
-import { offerSetupStar, runSetupStarConfirmation } from './setup-consent.mjs'
+import { runSetupStarConfirmation } from './setup-consent.mjs'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
 import { verifyInstalledStack } from '../lib/verify.js'
@@ -567,7 +567,6 @@ async function setupCurrent(args) {
   }
   console.log('  2. add a workspace from the sidebar')
   console.log('  3. choose the stock Minimal preset and keep Workspace Write enabled')
-  await offerSetupStar()
   console.log('')
   console.log(`${REPO}  (Windows fixes, doctor output, and legacy rc.6 support)`)
 }
@@ -653,7 +652,6 @@ async function setupLegacy(args) {
     console.log('  3. preset picker > "Minimal (Windows)", then switch the badge to danger-full-access')
     console.log('     (Git Bash cannot run in the sandbox; re-run with --sandboxed for a preset that can)')
   }
-  await offerSetupStar()
   console.log('')
   console.log(`${REPO}  (docs, known Windows traps, and where to report what broke)`)
 }

@@ -50,7 +50,8 @@ describe('setup on Windows', () => {
     expect(run.status).toBe(0)
     expect(run.stdout).toContain('current DSH already includes persistent PowerShell')
     expect(run.stdout).toContain('--sandboxed is no longer needed')
-    expect(run.stdout).not.toContain('Open GitHub to Star dsh-win32')
+    expect(run.stdout).not.toContain('[Y/n]')
+    expect(run.stdout).not.toContain('USER_CONFIRMATION_REQUIRED')
     expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(false)
     expect(existsSync(join(home, '.agent-presets'))).toBe(false)
   }, SPAWN_TIMEOUT)
@@ -72,6 +73,8 @@ describe('setup on Windows', () => {
 
     expect(run.status).toBe(0)
     expect(run.stdout).toContain('Git Bash was not found; skipped the "minimal-windows" preset')
+    expect(run.stdout).not.toContain('[Y/n]')
+    expect(run.stdout).not.toContain('USER_CONFIRMATION_REQUIRED')
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows'))).toBe(false)
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows-sandboxed'))).toBe(true)
   }, SPAWN_TIMEOUT)
