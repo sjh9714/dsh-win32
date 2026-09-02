@@ -11,7 +11,7 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
-import { runSetupStarConfirmation } from './setup-consent.mjs'
+import { offerSetupStar } from './setup-consent.mjs'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
 import { verifyInstalledStack } from '../lib/verify.js'
@@ -567,6 +567,7 @@ async function setupCurrent(args) {
   }
   console.log('  2. add a workspace from the sidebar')
   console.log('  3. choose the stock Minimal preset and keep Workspace Write enabled')
+  offerSetupStar()
   console.log('')
   console.log(`${REPO}  (Windows fixes, doctor output, and legacy rc.6 support)`)
 }
@@ -652,6 +653,7 @@ async function setupLegacy(args) {
     console.log('  3. preset picker > "Minimal (Windows)", then switch the badge to danger-full-access')
     console.log('     (Git Bash cannot run in the sandbox; re-run with --sandboxed for a preset that can)')
   }
+  offerSetupStar()
   console.log('')
   console.log(`${REPO}  (docs, known Windows traps, and where to report what broke)`)
 }
@@ -661,7 +663,6 @@ async function main([command, ...rest]) {
     if (rest.includes('--legacy')) await setupLegacy(rest.filter((arg) => arg !== '--legacy'))
     else await setupCurrent(rest)
   }
-  else if (command === 'star') process.exitCode = runSetupStarConfirmation(rest)
   else if (command === 'fix') fix()
   else if (command === 'verify') {
     const profile = profileFrom(rest, 'verify')
@@ -678,11 +679,10 @@ async function main([command, ...rest]) {
       profile,
     }).exitCode
   } else if (command === 'help' || command === '--help' || command === '-h') {
-    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|star (--yes|--no)|fix]')
+    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
     console.log('  verify  Live, model/API-free acceptance of an already-installed official DSH Windows component chain')
-    console.log('  star    Record a user-confirmed setup Star answer; only --yes changes an authenticated GitHub account')
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|star (--yes|--no)|fix]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
     process.exit(1)
   }
 }

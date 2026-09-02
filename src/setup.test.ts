@@ -28,16 +28,18 @@ function runSetup({ sandboxed, bash, legacy = true, meta = DSH_META }: { sandbox
   const args = ['setup', '--no-bundle', '--no-shortcut']
   if (legacy) args.push('--legacy')
   if (sandboxed) args.push('--sandboxed', '--busybox', busybox)
+  const env = {
+    ...process.env,
+    CLI_ARGS: args.join(' '),
+    DSH_HOME: home,
+    DSH_WINDOWS_TEST_ROOT: fixtures,
+    DSH_WINDOWS_BASH: bash ?? join(fixtures, 'missing-bash.exe'),
+    DSH_WINDOWS_DSH_META: meta,
+  }
+  for (const name of ['CI', 'GITHUB_ACTIONS', 'GITLAB_CI', 'BUILDKITE', 'CIRCLECI', 'JENKINS_URL', 'TEAMCITY_VERSION', 'TF_BUILD']) delete env[name]
   const run = spawnSync(process.execPath, [SIM], {
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      CLI_ARGS: args.join(' '),
-      DSH_HOME: home,
-      DSH_WINDOWS_TEST_ROOT: fixtures,
-      DSH_WINDOWS_BASH: bash ?? join(fixtures, 'missing-bash.exe'),
-      DSH_WINDOWS_DSH_META: meta,
-    },
+    env,
     timeout: SPAWN_TIMEOUT,
   })
   return { home, run }
@@ -52,7 +54,7 @@ describe('setup on Windows', () => {
     expect(run.stdout).toContain('--sandboxed is no longer needed')
     expect(run.stdout).not.toContain('[Y/n]')
     expect(run.stdout).not.toContain('USER_CONFIRMATION_REQUIRED')
-    expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(false)
+    expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(true)
     expect(existsSync(join(home, '.agent-presets'))).toBe(false)
   }, SPAWN_TIMEOUT)
 
@@ -75,6 +77,7 @@ describe('setup on Windows', () => {
     expect(run.stdout).toContain('Git Bash was not found; skipped the "minimal-windows" preset')
     expect(run.stdout).not.toContain('[Y/n]')
     expect(run.stdout).not.toContain('USER_CONFIRMATION_REQUIRED')
+    expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(true)
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows'))).toBe(false)
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows-sandboxed'))).toBe(true)
   }, SPAWN_TIMEOUT)
