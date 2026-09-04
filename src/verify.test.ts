@@ -28,6 +28,7 @@ const dshDirect = [
 const baseComponents = [
   '@deepseek-ai/dsh-agent',
   '@deepseek-ai/dsh-session',
+  '@deepseek-ai/dsh-session-projection',
   '@deepseek-ai/dsh-system-prompt',
   '@deepseek-ai/dsh-tools',
   '@deepseek-ai/dsh-subprocess-local',

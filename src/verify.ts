@@ -106,6 +106,7 @@ const DSH_DIRECT_COMPONENTS = [
 const BASE_COMPONENTS = [
   '@deepseek-ai/dsh-agent',
   '@deepseek-ai/dsh-session',
+  '@deepseek-ai/dsh-session-projection',
   '@deepseek-ai/dsh-system-prompt',
   '@deepseek-ai/dsh-tools',
   '@deepseek-ai/dsh-subprocess-local',
@@ -721,10 +722,11 @@ async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<Term
   const load = async (name: LiveComponent): Promise<any> => import(pathToFileURL(tree.components[name].entryPath).href)
   let ctx: any
   try {
-    const [cordis, agentModule, sessionModule, terminalModule, terminalBash, systemPromptModule, toolsModule, persistentPwsh, subprocessModule, sandboxModule, policyModule] = await Promise.all([
+    const [cordis, agentModule, sessionModule, sessionProjectionModule, terminalModule, terminalBash, systemPromptModule, toolsModule, persistentPwsh, subprocessModule, sandboxModule, policyModule] = await Promise.all([
       load('@deepseek-ai/cordis'),
       load('@deepseek-ai/dsh-agent'),
       load('@deepseek-ai/dsh-session'),
+      load('@deepseek-ai/dsh-session-projection'),
       load('@deepseek-ai/dsh-terminal'),
       load('@deepseek-ai/dsh-terminal-bash'),
       load('@deepseek-ai/dsh-system-prompt'),
@@ -738,6 +740,7 @@ async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<Term
     // Match the stock base ordering: the execution world precedes tools;
     // tools waits on systemPrompt, which is mounted immediately after it.
     await ctx.plugin(agentModule.default)
+    await ctx.plugin(sessionProjectionModule.default)
     await ctx.plugin(subprocessModule.default)
     await ctx.plugin(sandboxModule.default)
     await ctx.plugin(policyModule.default, { mode: 'workspace-write', workspaceRoot: requireEnvironment('DSH_WIN32_VERIFY_WORKSPACE') })
