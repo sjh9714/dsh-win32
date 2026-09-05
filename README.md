@@ -16,6 +16,8 @@ It does not install Git, PowerShell, busybox, WSL, or another DSH bundle on the 
 
 Using a coding agent? [Copy the setup and verification request](https://github.com/sjh9714/dsh-win32/blob/master/docs/agent-setup.md). For a guided walkthrough, see [Windows troubleshooting in Chinese](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md).
 
+Start with the [Windows first-run walkthrough](./docs/windows-first-run.md) if DSH will not launch or a check fails. It follows one problem from diagnosis through the next verification step. [Share your first-run result](https://github.com/sjh9714/dsh-win32/issues/new?template=first-run.md), including attempts that are still blocked.
+
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
 <a href="https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sjh9714/dsh-win32/ci.yml?style=flat-square&label=CI" alt="CI"></a>
