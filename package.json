@@ -97,7 +97,7 @@
     "@deepseek-ai/dsh-terminal-bash": "0.1.0-rc.6",
     "@types/node": "^22.10.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "iconv-lite": "^0.7.3"
