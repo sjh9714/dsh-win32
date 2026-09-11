@@ -80,6 +80,8 @@ The boundary is deliberate: this composes the installed official components and 
 
 The repository CI installs `@deepseek-ai/dsh@latest` from scratch and runs this acceptance on real Windows. Pushes, pull requests, and manual runs cover npm and strict pnpm layouts on Node 22.19 and 24. A weekly upstream watch retains both installers on Node 22.19, so a new DSH publication is checked even when dsh-win32 itself has not changed.
 
+The pnpm lane preserves a strict 24-hour publication cooldown and an explicit build-script allowlist. It can select an older eligible release than npm. Read the installed DSH version in each result; a pass is not evidence for a release that the package manager has not installed.
+
 ## Doctor and safe repair
 
 ```powershell
@@ -122,6 +124,8 @@ npx dsh-win32 setup --legacy
 npx dsh-win32 setup --legacy --sandboxed
 npx dsh-win32 doctor --legacy
 ```
+
+Legacy setup requests the exact invoked dsh-win32 version without lowering the profile's pnpm release-age or build policy. If a new release is held, wait for the configured cooldown and retry; do not add a release-age bypass.
 
 The legacy Git Bash preset needs `danger-full-access`. The legacy busybox preset can run in Workspace Write. Neither path installs Git automatically.
 

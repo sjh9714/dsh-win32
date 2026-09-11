@@ -74,6 +74,34 @@ describe('git_bash wrapper detection', () => {
 })
 
 describe('dsh-doctor/v1 envelope', () => {
+  it.each([
+    ['22.18.0', 'warn'],
+    ['22.19.0', 'pass'],
+    ['23.11.1', 'warn'],
+    ['24.0.0', 'pass'],
+  ])('reports Node %s as %s using the same eligibility as verify', (version, status) => {
+    // Mutate only the disposable child, not the test runner or the real Node
+    // installation. No production environment override is needed for this.
+    const source = `
+      Object.defineProperty(process.versions, 'node', { value: ${JSON.stringify(version)} });
+      process.argv = [process.execPath, ${JSON.stringify(CLI)}, 'doctor', '--json'];
+      await import(${JSON.stringify(new URL('../bin/cli.mjs', import.meta.url).href)});
+    `
+    let output: string
+    try {
+      output = execFileSync(process.execPath, ['--input-type=module', '-e', source], {
+        encoding: 'utf8',
+        timeout: SPAWN_TIMEOUT,
+        env: { ...process.env, DSH_WINDOWS_DSH_META: DSH_META, DSH_HOME: mkdtempSync(join(tmpdir(), 'dsh-doctor-node-')) },
+      })
+    } catch (error) {
+      output = (error as { stdout: string }).stdout
+    }
+    const check = JSON.parse(output).checks.find((item: any) => item.name === 'node')
+    expect(check.status).toBe(status)
+    expect(check.detail).toContain(version)
+  }, SPAWN_TIMEOUT)
+
   it('emits the contract envelope', () => {
     const { envelope } = runDoctor()
     expect(envelope.schema).toBe('dsh-doctor/v1')

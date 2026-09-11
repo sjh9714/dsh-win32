@@ -35,6 +35,19 @@ This uses temporary files and the installed official components to check persist
 
 When a coding agent's outer sandbox blocks the verifier, request access for this one command. The verifier's own inner Workspace Write boundary stays enabled. Preserve any snapshot the command retains after an unconfirmed shutdown.
 
+## If only DSH Desktop fails
+
+A successful CLI component check does not validate Electron's packaged process-launch chain. Keep the exact Desktop version, bundled DSH version, and short error separate from the CLI result.
+
+Two reported failure signatures must not be treated as the same diagnosis:
+
+| Reported error | Evidence and boundary |
+| --- | --- |
+| `0xC0000142` / `STATUS_DLL_INIT_FAILED`, or a PTY startup failure associated with restricted-token launch | [Desktop PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) investigates the Electron-to-Windows-ACL runner path. A generic PTY startup message alone does not establish this cause. |
+| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [Desktop #924](https://github.com/anywhere-labs/dsh-desktop/issues/924) reports failure even outside Workspace Write and in a fresh profile; [#933](https://github.com/anywhere-labs/dsh-desktop/issues/933) reports the same signature without a fresh-profile comparison. These are reporter observations, not a dsh-win32 reproduction or a verified fix. |
+
+Do not disable antivirus, widen the session's permissions, replace packaged runtime files, or assume the ACL-runner proposal repairs the Job-runner error. dsh-win32's `fix` currently repairs verified koffi problems only. Retain the failing result and follow the matching upstream report until the packaged Desktop path has been tested.
+
 ## Open your first session
 
 `npx dsh-win32 setup` checks the current setup and creates the Web-profile desktop shortcut. Use `--no-shortcut` if you do not want one. Launch DSH using the shortcut or its [official instructions](https://github.com/deepseek-ai/deepseek-harness#run), add a workspace, and select stock **Minimal** with **Workspace Write**.
