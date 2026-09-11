@@ -108,6 +108,10 @@ describe('setup on Windows', () => {
     const busybox = join(fixtures, 'busybox64.exe')
     const npxArgs = join(fixtures, 'npx-args.txt')
     const bin = join(fixtures, 'bin')
+    const policyPath = join(home, 'profiles', 'desktop', 'pnpm-workspace.yaml')
+    const policy = 'minimumReleaseAge: 2880\nminimumReleaseAgeStrict: true\nstrictDepBuilds: true\n'
+    mkdirSync(dirname(policyPath), { recursive: true })
+    writeFileSync(policyPath, policy)
     mkdirSync(dirname(bash), { recursive: true })
     writeFileSync(bash, '')
     writeFileSync(busybox, '')
@@ -132,6 +136,9 @@ describe('setup on Windows', () => {
     expect(run.status).toBe(0)
     const argv = readFileSync(npxArgs, 'utf8').trim().split(/\r?\n/)
     expect(argv.slice(argv.indexOf('--profile'), argv.indexOf('--profile') + 2)).toEqual(['--profile', 'desktop'])
+    expect(argv.some(arg => /minimum.?release.?age|ignore.?scripts|ignore.?dep.?scripts/i.test(arg))).toBe(false)
+    expect(readFileSync(policyPath, 'utf8')).toBe(policy)
+    expect(run.stdout).toContain('keeping the existing pnpm release-age and build policies')
   }, SPAWN_TIMEOUT)
 
   it('rejects an unsafe profile name before writing presets', () => {

@@ -155,12 +155,16 @@ jobs:
             # pnpm 11 reads project and build policy from pnpm-workspace.yaml,
             # not .npmrc. Keep the graph strict and approve only the native
             # scripts required by the current official DSH dependency graph.
+            # Keep pnpm's 24-hour publication cooldown. Its selected DSH may
+            # lag npm's latest; verify reports the installed identity, not a
+            # claim that both installers tested the same release.
             @(
               'nodeLinker: isolated',
               'hoist: false',
               'shamefullyHoist: false',
               'strictDepBuilds: true',
-              'minimumReleaseAge: 0',
+              'minimumReleaseAge: 1440',
+              'minimumReleaseAgeStrict: true',
               'allowBuilds:',
               "  '@deepseek-ai/dsh-subprocess-local': true",
               "  '@google/genai': true",

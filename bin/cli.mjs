@@ -14,7 +14,7 @@ import process from 'node:process'
 import { offerSetupStar } from './setup-consent.mjs'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
-import { verifyInstalledStack } from '../lib/verify.js'
+import { supportsDshNode, verifyInstalledStack } from '../lib/verify.js'
 
 const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
@@ -156,14 +156,13 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
   const add = (name, status, detail, fix) =>
     checks.push(fix === undefined ? { name, status, detail } : { name, status, detail, fix })
 
-  const [major, minor] = process.versions.node.split('.').map(Number)
   // Range is the one declared by the deepseek-harness root package.json, not
   // a threshold derived from an observed failure (#1719, #2259). Two states on
   // purpose. npm surfaces an out-of-range engine as EBADENGINE, a warning
   // rather than an error, so a doctor that fails here is stricter than the
   // packaging system that owns the constraint. Any `fail` boundary below the
   // declared range would be a number nothing declares.
-  if (major > 22 || (major === 22 && minor >= 19)) add('node', 'pass', process.versions.node)
+  if (supportsDshNode(process.versions.node)) add('node', 'pass', process.versions.node)
   else add('node', 'warn', `node ${process.versions.node} is outside DSH's declared range ^22.19.0 || >=24.0.0 (deepseek-harness root package.json)`)
 
   const pnpm = findPnpm()
@@ -195,13 +194,9 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
   } else if (wiredBundle === 'unreadable') {
     add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown', 'npx dsh-win32 setup')
   } else {
-    // The age-gate note is load bearing. A profile's pnpm-workspace.yaml
-    // carries minimumReleaseAgeExclude listing only the versions current when
-    // each bundle was wired, so for about a day after a publish the upgrade is
-    // a no-op and pnpm answers "Already up to date". Without this sentence the
-    // instruction silently does nothing and the warn looks like the user's
-    // fault.
-    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}`, 'npx dsh-win32 setup. If that reports no change, the profile\'s pnpm minimumReleaseAgeExclude gate is holding the new version, so retry the next day')
+    // An exact version may still be held by the profile's release-age policy.
+    // Keep the selected version visible without suggesting a policy bypass.
+    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}`, `npx dsh-win32@${SELF_VERSION} setup --legacy. If pnpm holds the release, retry after the configured minimum release age has elapsed; do not lower the policy`)
   }
 
   const release = dshReleaseMeta()
@@ -439,16 +434,12 @@ function ensureBundle(profile = 'web') {
     }
   }
   if (wired === undefined) console.log(`wiring the dsh-win32 bundle into the ${profile} profile (one-time)...`)
-  // The profile carries a pnpm minimum-release-age gate, and its exclude list
-  // only ever names the version current at wiring time, so a release published
-  // today is invisible to an upgrade and pnpm answers "Already up to date"
-  // (#17). We scope the override to this one install rather than editing the
-  // profile's policy file, which would weaken it permanently, and we say so
-  // rather than overriding a supply-chain protection silently.
-  info(`installing the exact version you invoked (${SELF_VERSION}) and overriding pnpm's minimum-release-age for this install only`)
-  info('the profile\'s own policy file is left untouched')
+  // Selecting the CLI's exact version does not authorize bypassing the
+  // profile's package-manager policy, even for a single invocation.
+  info(`installing the exact version you invoked (${SELF_VERSION}), keeping the existing pnpm release-age and build policies`)
+  info('if pnpm holds this release, retry after the configured minimum release age has elapsed')
   // -w: the profile dir is a pnpm workspace root; pnpm 10+ refuses a bare add there.
-  runDshPlugin(['--profile', profile, 'add', '-w', `dsh-win32@${SELF_VERSION}`, '--config.minimumReleaseAge=0'])
+  runDshPlugin(['--profile', profile, 'add', '-w', `dsh-win32@${SELF_VERSION}`])
 }
 
 function fix() {

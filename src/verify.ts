@@ -718,6 +718,28 @@ interface TerminalHarness {
   disposeAgent: () => void
 }
 
+/** Non-driving owner for direct tool acceptance, never an agent-loop substitute. */
+export function createVerificationAgent(id: string, session: unknown, ctx: any): any {
+  return {
+    id,
+    options: {},
+    session,
+    // DSH moved its concrete Inbox into the private loop driver in 0.1.5.
+    // This harness executes tools directly and must not drive an inbox. Fail
+    // closed if a component starts requiring one instead of faking its state.
+    get inbox() { throw new Error('agent inbox is outside direct-tool verification') },
+    status: 'idle',
+    ctx,
+    send: () => {},
+    followup: () => {},
+    steer: () => {},
+    inject: () => {},
+    cancel: () => {},
+    runMaintenance: (task: (signal: AbortSignal) => unknown) => task(new AbortController().signal),
+    whenIdle: () => Promise.resolve(),
+  }
+}
+
 async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<TerminalHarness> {
   const load = async (name: LiveComponent): Promise<any> => import(pathToFileURL(tree.components[name].entryPath).href)
   let ctx: any
@@ -774,21 +796,7 @@ async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<Term
     const id = sessionModule.SessionId(rawId)
     const scope = ctx.plugin(() => {})
     const session = sessionModule.Session.create(id)
-    const agent = {
-      id,
-      options: {},
-      session,
-      inbox: new agentModule.Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }),
-      status: 'idle',
-      ctx: scope.ctx,
-      send: () => {},
-      followup: () => {},
-      steer: () => {},
-      inject: () => {},
-      cancel: () => {},
-      runMaintenance: (task: (signal: AbortSignal) => unknown) => task(new AbortController().signal),
-      whenIdle: () => Promise.resolve(),
-    }
+    const agent = createVerificationAgent(id, session, scope.ctx)
     const disposeAgent = ctx.agents.register(agent)
     return { ctx, agent, disposeAgent }
   } catch {
