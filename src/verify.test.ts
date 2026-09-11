@@ -6,6 +6,7 @@ import { PassThrough } from 'node:stream'
 import { spawn } from 'node:child_process'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  createVerificationAgent,
   findInstalledDsh,
   isolatedEnvironment,
   resolveInstalledTree,
@@ -35,6 +36,23 @@ const baseComponents = [
   '@deepseek-ai/dsh-sandbox-local',
   '@deepseek-ai/dsh-sandbox-policy',
 ]
+
+describe('direct-tool verification owner', () => {
+  it('retains the real session and scope without constructing a removed Inbox export', () => {
+    const session = { id: 'verify-session' }
+    const scope = {}
+    const agent = createVerificationAgent(session.id, session, scope)
+    expect(agent.id).toBe(session.id)
+    expect(agent.session).toBe(session)
+    expect(agent.ctx).toBe(scope)
+    expect(agent.status).toBe('idle')
+  })
+
+  it('fails closed if the tool chain tries to access an agent-loop inbox', () => {
+    const agent = createVerificationAgent('verify-session', {}, {})
+    expect(() => agent.inbox).toThrow('agent inbox is outside direct-tool verification')
+  })
+})
 
 function writePackage(root: string, name: string, extra: Record<string, unknown> = {}): string {
   const directory = join(root, 'node_modules', ...name.split('/'))
