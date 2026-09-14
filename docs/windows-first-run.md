@@ -39,14 +39,19 @@ When a coding agent's outer sandbox blocks the verifier, request access for this
 
 A successful CLI component check does not validate Electron's packaged process-launch chain. Keep the exact Desktop version, bundled DSH version, and short error separate from the CLI result.
 
-Two reported failure signatures must not be treated as the same diagnosis:
+Match the error to its own upstream path; an open issue does not necessarily mean no fix has shipped. Release status checked on **2026-09-14**:
 
 | Reported error | Evidence and boundary |
 | --- | --- |
 | `0xC0000142` / `STATUS_DLL_INIT_FAILED`, or a PTY startup failure associated with restricted-token launch | [Desktop PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) investigates the Electron-to-Windows-ACL runner path. A generic PTY startup message alone does not establish this cause. |
-| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [Desktop #924](https://github.com/anywhere-labs/dsh-desktop/issues/924) reports failure even outside Workspace Write and in a fresh profile; [#933](https://github.com/anywhere-labs/dsh-desktop/issues/933) reports the same signature without a fresh-profile comparison. These are reporter observations, not a dsh-win32 reproduction or a verified fix. |
+| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [#924](https://github.com/anywhere-labs/dsh-desktop/issues/924) and [#933](https://github.com/anywhere-labs/dsh-desktop/issues/933) track this signature. [PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) added Node mode for Electron's private Windows Job runner, without changing the target command's environment. The fix shipped in [Desktop 2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) and remains in 2.0.10. |
+| `Cannot mix BigInt and other types` during bundled-skill discovery or ASAR directory metadata access | [PR #973](https://github.com/anywhere-labs/dsh-desktop/pull/973), included in [Desktop 2.0.10](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.10), removes ASAR packaging and adds packaged-filesystem checks. An unrelated BigInt error is not evidence of this cause. |
 
-Do not disable antivirus, widen the session's permissions, replace packaged runtime files, or assume the ACL-runner proposal repairs the Job-runner error. dsh-win32's `fix` currently repairs verified koffi problems only. Retain the failing result and follow the matching upstream report until the packaged Desktop path has been tested.
+Desktop 2.0.10 bundles DSH `0.1.5-rc.2`. Its [release-commit CI](https://github.com/anywhere-labs/dsh-desktop/actions/runs/34783941380) passed the Stable and Beta Windows package checks and installer/portable builds. The [Windows report on PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927#issuecomment-5620391833) demonstrated the runner mechanism with a local modification to 2.0.7, not a corrected release installation. Neither that report nor a build pass establishes a complete packaged Desktop/Minimal session, PTY cancellation, or cleanup.
+
+For an older Desktop with the Job-runner or ASAR signature, record the failing version, quit the application, and use its official release/update instructions before repeating the same task with unchanged permissions. Record the installed version and whether the original error recurs. dsh-win32 has not independently validated the corrected Windows installer; keep that result separate from the CLI component check and keep the full-session acceptance gate in place.
+
+Do not disable antivirus, widen the session's permissions, replace packaged runtime files, or assume the Job-runner or ASAR changes repair the restricted-token ACL path. dsh-win32's `fix` currently repairs verified koffi problems only. Retain any remaining failure and follow the matching upstream report.
 
 ## Open your first session
 
