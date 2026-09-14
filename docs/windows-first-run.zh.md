@@ -51,7 +51,23 @@ npx dsh-win32 verify --json
 
 通过之后仍有明确边界：它没有启动完整 stock Minimal host，没有验证插件安装、hook 强制执行或模型工作流。使用时选择官方 **Minimal** 并保持 **Workspace Write**，不要把组件结果宣传成完整 TUI 验证。
 
-## 4. 已有 Claude Code 配置怎么办？
+## 4. 只有 DSH Desktop 失败时
+
+CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；不能仅凭 issue 仍然开放就判断修复尚未发布。以下发布状态核对于 **2026-09-14**：
+
+| 错误特征 | 上游证据与边界 |
+| --- | --- |
+| `0xC0000142` / `STATUS_DLL_INIT_FAILED`，或与受限令牌启动有关的 PTY 失败 | [Desktop PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) 调查 Electron 到 Windows ACL runner 的路径。普通 PTY 启动报错本身不能证明是这个原因。 |
+| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [#924](https://github.com/anywhere-labs/dsh-desktop/issues/924) 和 [#933](https://github.com/anywhere-labs/dsh-desktop/issues/933) 记录了该特征。[PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) 只为 Electron 的私有 Windows Job runner 启用 Node 模式，不改变目标命令的环境。修复已包含在 [Desktop 2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) 中，2.0.10 继续保留。 |
+| 内置技能发现或 ASAR 目录元数据访问时出现 `Cannot mix BigInt and other types` | [PR #973](https://github.com/anywhere-labs/dsh-desktop/pull/973) 取消 ASAR 打包并增加打包后文件系统检查，已包含在 [Desktop 2.0.10](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.10) 中。其他位置的 BigInt 错误不一定同源。 |
+
+Desktop 2.0.10 内置 DSH `0.1.5-rc.2`。[发布提交的 CI](https://github.com/anywhere-labs/dsh-desktop/actions/runs/34783941380) 已通过 Stable/Beta 的 Windows 打包检查及安装包、Portable 构建。[PR #927 的 Windows 实测](https://github.com/anywhere-labs/dsh-desktop/pull/927#issuecomment-5620391833) 验证的是本地修改后的 2.0.7 中的 runner 机制，不是修复后发布的安装包。这些证据都不能替代完整 Desktop/Minimal 会话、PTY 中断与清理的验收。
+
+旧版 Desktop 出现对应的 Job runner 或 ASAR 错误时，先记录失败版本、退出应用，再按其官方发布或更新说明升级，并在不改变权限的前提下重试同一任务。记录实际安装版本及原错误是否重现。dsh-win32 尚未独立验证修复后的 Windows 安装包；请与 CLI 组件结果分开记录，继续保留完整会话验收门槛。
+
+不要关闭杀毒软件、扩大权限、替换应用内的 runtime 文件，也不要假设 Job runner 或 ASAR 修复能解决受限令牌 ACL 路径。dsh-win32 的 `fix` 目前只修复已确认的 koffi 问题。仍失败时保留最短错误，并跟进对应上游报告。
+
+## 5. 已有 Claude Code 配置怎么办？
 
 Windows 正常之后，可以另行使用 [dsh-movein](https://github.com/sjh9714/dsh-movein)。在原项目目录先预演：
 
