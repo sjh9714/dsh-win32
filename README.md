@@ -12,6 +12,8 @@ Current DeepSeek Harness already includes persistent PowerShell and a Windows AC
 
 It does not install Git, PowerShell, busybox, WSL, or another DSH bundle on the current path.
 
+Use the standalone CLI above on current DSH. Do **not** run `dsh plugin --profile web add dsh-win32` for this workflow: that installs the legacy bundle, not the current Windows setup path.
+
 [中文](./docs/README.zh.md) · [Windows evidence and legacy details](./docs/windows-details.md)
 
 Using a coding agent? [Copy the setup and verification request](https://github.com/sjh9714/dsh-win32/blob/master/docs/agent-setup.md). For a guided walkthrough, see [Windows troubleshooting in Chinese](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md).
@@ -120,6 +122,10 @@ Moving configuration does not prove hook enforcement or a complete stock Minimal
 ## Legacy DSH
 
 DSH rc.6 and older did not ship the current official PowerShell stack. The previous Git Bash and busybox presets remain available behind an explicit flag.
+
+The package's `@deepseek-ai/dsh-subprocess-local` peer range, `>=0.1.0-rc.5 <0.1.0-rc.7`, intentionally bounds that legacy bundle. It is not the host version range for the standalone `setup`, `doctor`, or `verify` commands, which do not wire the bundle into current DSH. A successful `dsh plugin add` is not compatibility evidence; the missing host-peer warning is tracked in [upstream #6680](https://github.com/deepseek-ai/deepseek-harness/discussions/6680).
+
+If a current DSH profile already lists dsh-win32 as a plugin, run `npx dsh-win32 doctor --profile NAME` with that profile's actual name. Doctor warns about the legacy bundle and suggests a removal command; it does not remove anything. Review and back up the affected profile before deciding whether to remove it.
 
 ```powershell
 npx dsh-win32 setup --legacy

@@ -12,6 +12,8 @@ npx dsh-win32 setup
 
 当前路径不会安装 Git、PowerShell、busybox、WSL，也不会把另一个 DSH bundle 写进 profile。
 
+当前版 DSH 请使用上面的独立 CLI。不要为这条路径运行 `dsh plugin --profile web add dsh-win32`：那会安装旧版 bundle，不是当前 Windows 配置方式。
+
 [English](../README.md) · [Windows 实证与旧版细节](./windows-details.md)
 
 让 coding agent 帮忙时，可以复制[安装与验收指令](https://github.com/sjh9714/dsh-win32/blob/master/docs/agent-setup.md#中文)。第一次排错请看[Windows PowerShell 故障：先诊断，再验证](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md)。
@@ -60,6 +62,10 @@ npx dsh-win32 fix
 ## 旧版 DSH
 
 DSH rc.6 及更早版本没有当前官方 PowerShell stack。原来的 Git Bash 和 busybox 预设仍保留，但必须显式选择。
+
+package 中的 `@deepseek-ai/dsh-subprocess-local` peer 范围 `>=0.1.0-rc.5 <0.1.0-rc.7` 是刻意保留的旧版 bundle 边界，不是独立 `setup`、`doctor` 或 `verify` 命令的 host 版本范围；这些命令不会把 bundle 接入当前版 DSH。`dsh plugin add` 成功不等于兼容，缺少 host-peer 警告的问题见[上游 #6680](https://github.com/deepseek-ai/deepseek-harness/discussions/6680)。
+
+如果当前 profile 已把 dsh-win32 列为插件，请用真实 profile 名运行 `npx dsh-win32 doctor --profile NAME`。Doctor 会提示旧版 bundle 和移除命令，但不会自动移除。先检查并备份受影响的 profile，再决定是否移除。
 
 ```powershell
 npx dsh-win32 setup --legacy

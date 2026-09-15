@@ -14,6 +14,8 @@ Read https://github.com/sjh9714/dsh-win32 before running commands.
    and ask before installing or upgrading anything.
 2. Preserve existing profiles, presets, credentials, and package-manager policy.
    Do not select --legacy, disable Workspace Write, or change global settings.
+   Use the standalone CLI; do not run dsh plugin --profile web add dsh-win32.
+   That installs the legacy bundle, which is not the current setup path.
 3. Run npx dsh-win32 doctor --json. Explain warnings without exposing paths or
    secrets. Metadata checks are not proof that the installed runtime works.
 4. Explain proposed changes before npx dsh-win32 setup. The default web path
@@ -48,6 +50,8 @@ Once Windows is working, [Movein's separate migration request](https://github.co
    缺少前置软件时，说明官方安装办法，先询问再安装或升级。
 2. 保留现有 profile、预设、凭据和包管理器政策；不要自动选 --legacy、
    关闭 Workspace Write 或修改全局设置。
+   使用独立 CLI；不要运行 dsh plugin --profile web add dsh-win32，
+   那会安装旧版 bundle，不是当前配置路径。
 3. 运行 npx dsh-win32 doctor --json，解释警告，不公开路径或密钥。
    package metadata 正常不代表本机 runtime 已经通过。
 4. 说明变更后运行 npx dsh-win32 setup；不需要桌面快捷方式就使用
