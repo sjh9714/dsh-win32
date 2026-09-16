@@ -1,8 +1,8 @@
-# Get past a DSH startup problem on Windows
+# Diagnose DSH startup and session failures on Windows
 
 [README](../README.md) · [中文](./windows-first-run.zh.md) · [Coding-agent request](./agent-setup.md)
 
-Use this when the official DSH Windows installation will not start PowerShell, or after a runtime update leaves you unsure what failed. dsh-win32 checks the current official stack and repairs specific known failures. It does not install DSH, PowerShell, Git, or WSL.
+Use this when the official DSH Windows installation will not start PowerShell, a running session disconnects, or a runtime update leaves you unsure what failed. dsh-win32 checks the current official stack and repairs specific known failures. It does not install DSH, PowerShell, Git, or WSL.
 
 ## Find the failing step
 
@@ -52,6 +52,18 @@ Desktop 2.0.10 bundles DSH `0.1.5-rc.2`. Its [release-commit CI](https://github.
 For an older Desktop with the Job-runner or ASAR signature, record the failing version, quit the application, and use its official release/update instructions before repeating the same task with unchanged permissions. Record the installed version and whether the original error recurs. dsh-win32 has not independently validated the corrected Windows installer; keep that result separate from the CLI component check and keep the full-session acceptance gate in place.
 
 Do not disable antivirus, widen the session's permissions, replace packaged runtime files, or assume the Job-runner or ASAR changes repair the restricted-token ACL path. dsh-win32's `fix` currently repairs verified koffi problems only. Retain any remaining failure and follow the matching upstream report.
+
+## If a running session disconnects with `spillAll` / `ENOENT`
+
+An `ENOENT` from `OutputCollector.spillAll` while opening a `dsh-subprocess-*` output file matches [upstream #2252](https://github.com/deepseek-ai/deepseek-harness/discussions/2252). If an external cleanup removes the temporary output directory, the next output overflow can throw from a stream callback and terminate the host. A generic disconnect alone does not establish this cause.
+
+On 2026-09-16, an isolated Node test of the unchanged collector class extracted from the published `@deepseek-ai/dsh-subprocess-local@0.1.5-rc.1` archive reproduced an uncaught `ENOENT` after deletion before the first spill; a healthy directory and a no-spill control passed. This was a macOS collector-level test, not a complete DSH host or Windows session test. The inspected `0.1.5-rc.2` source and `0.1.6-alpha.1`'s relocated `output.ts` still contain the unguarded spill writes; upgrading to those versions is not an established repair.
+
+- Record the actual DSH and Node versions and only the short, redacted error. Preserve the profile and session history.
+- Once the failed process has exited, restart through your existing DSH launcher. Do not delete temporary directories used by a running DSH process.
+- `doctor`, `fix`, and a passing `verify` do not repair or rule out this failure. The legacy Win32 collector has its own I/O protection, but current setup does not replace the official collector. Do not install the legacy bundle as a workaround or patch packaged runtime files in place.
+
+Keep Workspace Write, antivirus, and package-manager policy unchanged. Follow the upstream fix and verify its exact released version before treating the problem as resolved.
 
 ## Open your first session
 
