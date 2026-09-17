@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import type { Readable } from 'node:stream'
+import { finished } from 'node:stream/promises'
 import { decodeLegacy, sniff, type SniffVerdict } from './fs.ts'
 
 export interface OutputRead {
@@ -150,13 +151,14 @@ export class DecodingCollector {
   }
 }
 
-/** Attach a collector to a raw stream; resolves when the stream ends. */
+/** Collect until end, error, or close (including an already closed pipe). */
 export function collectStream(stream: Readable, maxBytes: number, spillMaxBytes?: number): { reader: DecodingCollector, done: Promise<void> } {
   const reader = new DecodingCollector(maxBytes, spillMaxBytes)
-  const done = new Promise<void>(resolve => {
-    stream.on('data', (chunk: Buffer) => reader.push(chunk))
-    stream.on('end', () => resolve())
-    stream.on('error', () => resolve())
-  })
+  const onData = (chunk: Buffer): void => { reader.push(chunk) }
+  stream.on('data', onData)
+  const done = finished(stream, { readable: true, writable: false, cleanup: true })
+    // A closed/broken output pipe still leaves its captured tail readable.
+    .catch(() => {})
+    .finally(() => { stream.off('data', onData) })
   return { reader, done }
 }
