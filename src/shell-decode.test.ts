@@ -1,10 +1,44 @@
 import { readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import { PassThrough } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import iconv from 'iconv-lite'
-import { DecodingCollector } from './shell-decode.ts'
+import { collectStream, DecodingCollector } from './shell-decode.ts'
 
 const GBK_TEXT = '编译完成，没有错误。'
+
+describe('collectStream', () => {
+  it('retains the final bytes before a normal end', async () => {
+    const stream = new PassThrough()
+    const { reader, done } = collectStream(stream, 1024)
+    stream.end(Buffer.from('final output'))
+    await done
+    expect(reader.readFrom(0).text).toBe('final output')
+  })
+
+  it.each([false, true])('settles on destroy without end (error=%s)', async (withError) => {
+    const stream = new PassThrough()
+    const { reader, done } = collectStream(stream, 1024)
+    let settled = false
+    void done.then(() => { settled = true })
+    stream.write(Buffer.from('retained'))
+    stream.destroy(withError ? new Error('pipe closed') : undefined)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(settled).toBe(true)
+    expect(reader.readFrom(0).text).toBe('retained')
+    for (const event of ['data', 'end', 'error', 'close']) expect(stream.listenerCount(event)).toBe(0)
+  })
+
+  it('settles when attached to an already closed stream', async () => {
+    const stream = new PassThrough()
+    stream.destroy()
+    await new Promise(resolve => setImmediate(resolve))
+    let settled = false
+    void collectStream(stream, 1024).done.then(() => { settled = true })
+    await new Promise(resolve => setImmediate(resolve))
+    expect(settled).toBe(true)
+  })
+})
 
 describe('DecodingCollector', () => {
   it('passes UTF-8 through unchanged with incremental offsets', () => {

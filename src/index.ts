@@ -9,6 +9,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
+import type { Readable } from 'node:stream'
 import type { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { setConsoleProbeWarn } from './console-list.ts'
@@ -96,21 +97,37 @@ export default class WindowsSubprocessRuntime extends LocalSubprocessRuntime {
     const handle = super.spawn(rewritten)
     const collected: { stdout?: unknown, stderr?: unknown } = {}
     const drains: Promise<void>[] = []
+    const ownedStreams: Readable[] = []
     if (stdoutCollect !== undefined && handle.stdout !== undefined) {
       const { reader, done } = collectStream(handle.stdout, stdoutCollect.maxBytes, stdoutCollect.spill?.maxBytes)
       collected.stdout = reader
       drains.push(done)
+      ownedStreams.push(handle.stdout)
     }
     if (stderrCollect !== undefined && handle.stderr !== undefined) {
       const { reader, done } = collectStream(handle.stderr, stderrCollect.maxBytes, stderrCollect.spill?.maxBytes)
       collected.stderr = reader
       drains.push(done)
+      ownedStreams.push(handle.stderr)
     }
-    // The outcome must not settle before the pipes drain, or a read right
-    // after `done` can miss the final chunks.
+    // Preserve queued output, but a surviving descendant can hold the pipe
+    // open forever (#78). The parent runtime validates graceMs and already
+    // bounds its own post-exit wait; allow at most one more grace for these
+    // decoded pipes. Raw caller-owned pipes must never be closed here.
     const doneWithDrain = handle.done.then(async outcome => {
-      await Promise.all(drains)
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          Promise.all(drains),
+          new Promise<void>(resolve => { timer = setTimeout(resolve, rewritten.graceMs) }),
+        ])
+      } finally {
+        clearTimeout(timer)
+      }
       return outcome
+    }).finally(() => {
+      // Also release our pipes on a spawn-level rejection.
+      for (const stream of ownedStreams) stream.destroy()
     })
     return new Proxy(handle, {
       get(target, property) {
