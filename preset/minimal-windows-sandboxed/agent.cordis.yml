@@ -12,6 +12,8 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
+    # Keep both keys equal: rc.6 reads text; newer persona versions read prefix.
+    prefix: You are a helpful software engineer assistant.
     text: You are a helpful software engineer assistant.
     complete: true
     includeRuntimeContext: false

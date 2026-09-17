@@ -135,6 +135,8 @@ npx dsh-win32 doctor --legacy
 
 Legacy setup requests the exact invoked dsh-win32 version without lowering the profile's pnpm release-age or build policy. If a new release is held, wait for the configured cooldown and retry; do not add a release-age bypass.
 
+Legacy setup reinstalls default presets. From 0.17.10, an existing preset is first moved intact to a unique backup under `$DSH_HOME/dsh-win32/preset-backups` (or `~/.dsh/dsh-win32/preset-backups`). Custom edits remain in that backup, not in the new active preset. Plugin activation still leaves existing presets untouched. To fix only a missing persona `text`/`prefix` field without resetting your custom tools or shell settings, use the [in-place recovery instructions](./docs/windows-details.md#persona-config-recovery).
+
 The legacy Git Bash preset needs `danger-full-access`. The legacy busybox preset can run in Workspace Write. Neither path installs Git automatically.
 
 [Read the implementation evidence, compatibility history, and complete legacy limitations](./docs/windows-details.md).
