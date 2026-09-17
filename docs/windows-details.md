@@ -103,6 +103,29 @@ The sandboxed variant (`minimal-windows-sandboxed`) only installs through `setup
 
 Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh-win32 fix` repairs what it safely can. For koffi it installs 3.1.2 without the lifecycle script, forces the optional platform package to relink, and verifies a real runtime load afterward.
 
+### Persona config recovery
+
+If a legacy preset reports a missing `prefix` or `text` value, do not delete the preset directory. The published persona component changed its schema: `@deepseek-ai/dsh-persona@0.1.0-rc.6` requires `text`, while `0.1.5-rc.2` requires `prefix`. The 0.17.10 templates keep both keys with the same value. Renaming `text` to `prefix` alone breaks the supported rc.6 composition.
+
+For an existing custom preset:
+
+1. Back up its `agent.cordis.yml` before editing. The file is under `$DSH_HOME/.agent-presets/minimal-windows/` or `minimal-windows-sandboxed/`; the default DSH_HOME is `~/.dsh`.
+2. Find only the row named `@deepseek-ai/dsh-persona`. In that row's `config`, **add the missing key**, copying the complete value of the existing `text` or `prefix` field. Keep both values equal, preserving multiline YAML indentation if applicable. If both already exist but differ, review the intended persona instead of overwriting either blindly.
+3. Leave `complete`, `includeRuntimeContext`, other plugin rows, shell paths, permissions, and profile files unchanged. Reload the preset. This is a persona-component repair, not a claim that every other component in a newer host is compatible.
+
+For the unmodified default persona, the resulting config is:
+
+```yaml
+prefix: You are a helpful software engineer assistant.
+text: You are a helpful software engineer assistant.
+complete: true
+includeRuntimeContext: false
+```
+
+Plugin activation does not overwrite an existing roster. Explicit `setup --legacy` is different: it reinstalls defaults. From 0.17.10 it first moves the **entire existing preset directory**, including extra files, to a unique path under `$DSH_HOME/dsh-win32/preset-backups` and prints that path. A backup failure stops setup before replacing the original. If installation fails after the move, the original remains in the printed backup; stop and restore/review it before retrying. Backups are outside `.agent-presets`, so they do not add duplicate picker entries. Setup refuses linked preset directories. Use the in-place steps above when you want to retain your custom active configuration.
+
+The legacy subprocess peer range and the full Minimal/Desktop acceptance gate have not changed. Passing both persona schemas does not establish complete host/session compatibility.
+
 `doctor` also emits machine-readable results for CI and support use.
 
 ```sh

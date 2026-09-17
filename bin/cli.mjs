@@ -6,7 +6,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -461,10 +461,23 @@ function fix() {
   }
 }
 
-/** setup rewrites on purpose: the user asked for this shell explicitly. */
+/** Explicit legacy setup reinstalls defaults, but never discards the old roster. */
 function substitutePreset(presetId, shellPath) {
   const targetDir = join(DSH_HOME, '.agent-presets', presetId)
-  rmSync(targetDir, { recursive: true, force: true })
+  if (existsSync(targetDir)) {
+    const stat = lstatSync(targetDir)
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`refusing to replace a non-directory or linked preset: ${targetDir}`)
+    }
+    // Outside .agent-presets: backups must not appear as selectable presets.
+    // If backup creation/rename fails, leave the original in place and stop.
+    const root = join(DSH_HOME, 'dsh-win32', 'preset-backups')
+    mkdirSync(root, { recursive: true })
+    const backup = join(mkdtempSync(join(root, `${presetId}-`)), presetId)
+    renameSync(targetDir, backup)
+    info(`backed up existing preset "${presetId}" -> ${backup}`)
+    info('reinstalling defaults; custom edits remain in the backup, not in the active preset')
+  }
   const outcome = installPreset(presetId, shellPath, DSH_HOME)
   if (outcome.status === 'failed') throw new Error(`preset ${presetId} could not be written: ${outcome.detail}`)
   return targetDir

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -46,6 +46,72 @@ function runSetup({ sandboxed, bash, legacy = true, meta = DSH_META }: { sandbox
 }
 
 describe('setup on Windows', () => {
+  it.each([
+    ['minimal-windows', false], ['minimal-windows', true],
+    ['minimal-windows-sandboxed', false], ['minimal-windows-sandboxed', true],
+  ] as const)('preserves %s before reinstall (backup blocked=%s)', (presetId, blocked) => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-win32-reinstall-'))
+    const preset = join(home, '.agent-presets', presetId)
+    const backupRoot = join(home, 'dsh-win32', 'preset-backups')
+    const original = '# my custom roster\n- id: keep-my-tools\n'
+    mkdirSync(join(preset, 'custom'), { recursive: true })
+    writeFileSync(join(preset, 'agent.cordis.yml'), original)
+    writeFileSync(join(preset, 'preset.yml'), 'name: My edited preset\n')
+    writeFileSync(join(preset, 'custom', 'notes.txt'), 'keep all my files')
+    if (blocked) {
+      mkdirSync(dirname(backupRoot), { recursive: true })
+      writeFileSync(backupRoot, 'backup location is unavailable')
+    }
+    try {
+      const args = [CLI, 'setup', '--legacy', '--no-bundle', '--no-shortcut', '--bash', 'C:/test/bash.exe']
+      if (presetId === 'minimal-windows-sandboxed') args.push('--sandboxed', '--busybox', 'C:/test/bash.exe')
+      const run = spawnSync(process.execPath, args, {
+        env: { ...process.env, DSH_HOME: home, DSH_WINDOWS_DSH_META: DSH_META, CI: 'true' },
+        encoding: 'utf8', timeout: SPAWN_TIMEOUT,
+      })
+      if (blocked) {
+        expect(run.status).not.toBe(0)
+        expect(readFileSync(join(preset, 'agent.cordis.yml'), 'utf8')).toBe(original)
+        expect(readFileSync(join(preset, 'custom', 'notes.txt'), 'utf8')).toBe('keep all my files')
+      } else {
+        expect(run.status).toBe(0)
+        expect(run.stdout).toContain('backed up existing preset')
+        const backups = readdirSync(backupRoot)
+        expect(backups).toHaveLength(1)
+        const saved = join(backupRoot, backups[0], presetId)
+        expect(readFileSync(join(saved, 'agent.cordis.yml'), 'utf8')).toBe(original)
+        expect(readFileSync(join(saved, 'preset.yml'), 'utf8')).toBe('name: My edited preset\n')
+        expect(readFileSync(join(saved, 'custom', 'notes.txt'), 'utf8')).toBe('keep all my files')
+        expect(readFileSync(join(preset, 'agent.cordis.yml'), 'utf8')).toContain('C:/test/bash.exe')
+      }
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  }, SPAWN_TIMEOUT)
+
+  it('refuses a linked preset without moving its target or discarding edits', () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-win32-linked-preset-'))
+    const original = join(home, 'custom-original')
+    const preset = join(home, '.agent-presets', 'minimal-windows')
+    mkdirSync(original)
+    mkdirSync(dirname(preset))
+    writeFileSync(join(original, 'agent.cordis.yml'), 'keep my linked roster')
+    symlinkSync(original, preset, 'junction')
+    try {
+      const run = spawnSync(process.execPath, [CLI, 'setup', '--legacy', '--no-bundle', '--no-shortcut', '--bash', 'C:/test/bash.exe'], {
+        env: { ...process.env, DSH_HOME: home, DSH_WINDOWS_DSH_META: DSH_META, CI: 'true' },
+        encoding: 'utf8', timeout: SPAWN_TIMEOUT,
+      })
+      expect(run.status).not.toBe(0)
+      expect(run.stderr).toContain('refusing to replace')
+      expect(lstatSync(preset).isSymbolicLink()).toBe(true)
+      expect(readFileSync(join(original, 'agent.cordis.yml'), 'utf8')).toBe('keep my linked roster')
+      expect(existsSync(join(home, 'dsh-win32', 'preset-backups'))).toBe(false)
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  }, SPAWN_TIMEOUT)
+
   it('uses the official DSH stack by default and installs no legacy preset', () => {
     const { home, run } = runSetup({ sandboxed: true, legacy: false })
 
