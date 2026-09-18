@@ -1,78 +1,60 @@
-# Does PowerShell start under the workspace-write restricted token when no
-# injecting AV is present?
-#
-# anywhere-labs/deepseek-harness-desktop#203 asked reporters to separate the
-# restricted token / pwsh startup chain from the extra triggering that 火绒,
-# 360 and enterprise EDR add by injecting DLLs. A windows-latest runner carries
-# Defender and nothing that injects, so it answers the first branch on its own.
-#
-# Manual only. It exists to produce one report, not to run on every push.
+# Diagnostic branch only: official installer payload, never installed on a user host.
 name: pwsh sandbox probe
-
 on:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
   probe:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        # yxccai/dsh-desktop#1 ran the same comparison on Windows 10 22H2
-        # (build 19045) and did not reproduce the failure, while every cell
-        # here was build 26100. Whether the fault is gated on the OS build is
-        # now load bearing, since anywhere-labs#266 is vendoring ~87MB of Node
-        # to avoid it. windows-2022 is build 20348, windows-2025 is 26100.
         os: [windows-2022, windows-2025]
-        # Which process creates the restricted token. `node` is the CLI shape.
-        # `electron` is the packaged desktop shape, where the runner is an
-        # ELECTRON_RUN_AS_NODE child. That is the only structural difference
-        # between the two, so it is the cell #203 needs.
-        # electron-spawn-node is the repair #203 proposed, an Electron parent
-        # that hands the runner to a separate Node runtime instead of loading
-        # it in process. It turns this matrix from a diagnosis into a check on
-        # whether the proposed fix actually holds.
-        # electron-spawn-vendored-node answers whether the repair depends on
-        # WHICH Node runs the runner. It uses a different major downloaded
-        # straight from nodejs.org into its own directory, which is the shape a
-        # packaged desktop app would ship, rather than the one already on PATH.
-        chain: ['node', 'electron']
-    name: ${{ matrix.os }} chain ${{ matrix.chain }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22.19.0
-      - run: npm install
-      # Not saved to package.json: electron is only needed to reproduce the
-      # desktop launch chain, never to run or build the plugin. Version pinned
-      # to what the desktop app ships (#203).
-      - name: install electron
-        if: startsWith(matrix.chain, 'electron')
-        run: npm install --no-save electron@43.4.0
-      # Electron 43 downloads its platform binary lazily from require(). The
-      # probe executes a fixed literal path, so materialize and verify it here
-      # without passing the resolved path through the workflow environment.
-      - name: materialize electron binary
-        if: startsWith(matrix.chain, 'electron')
-        run: node -e "const fs = require('node:fs'); const electron = require('electron'); fs.accessSync(electron); console.log(electron)"
-      - name: vendor an unrelated official node
-        if: matrix.chain == 'electron-spawn-vendored-node'
-        shell: bash
+      - name: Extract the digest-verified official Desktop 2.0.11 installer
+        shell: pwsh
         run: |
-          set -euo pipefail
-          ver=v20.19.5
-          curl -fsSL -o node.zip "https://nodejs.org/dist/$ver/node-$ver-win-x64.zip"
-          unzip -q node.zip -d vendored
-          # The probe derives this fixed workspace path itself. Do not pass an
-          # executable path through the environment.
-          "./vendored/node-$ver-win-x64/node.exe" -v
-      - run: npm run build
-      # The probe never fails on the workspace-write result: that cell is the
-      # finding either way. It exits non-zero only when the unconfined control
-      # cannot start the shell, which would mean the host is wrong.
-      - name: probe
-        timeout-minutes: 10
+          $ErrorActionPreference = 'Stop'
+          $probeRoot = Join-Path $env:RUNNER_TEMP ('dsh-win32-upstream-' + [guid]::NewGuid())
+          New-Item -ItemType Directory $probeRoot | Out-Null
+          $installer = Join-Path $probeRoot 'DSH-Desktop-2.0.11-x64-Setup.exe'
+          Invoke-WebRequest 'https://github.com/anywhere-labs/dsh-desktop/releases/download/v2.0.11/DSH-Desktop-2.0.11-x64-Setup.exe' -OutFile $installer
+          $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant()
+          if ($digest -ne 'e758d6cb70f33c748f14c9f66f40d93be8fdc661deba6bbfcf02b4d5ccd723f7') { throw 'Installer digest mismatch' }
+          $unpacked = Join-Path $probeRoot 'installer'
+          & 7z x $installer "-o$unpacked" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+          $payloads = @(Get-ChildItem -LiteralPath $unpacked -Recurse -Filter 'app-64.7z')
+          if ($payloads.Count -ne 1) { throw 'Expected one x64 payload' }
+          $payload = Join-Path $probeRoot 'payload'
+          & 7z x $payloads[0].FullName "-o$payload" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
+          $app = Join-Path $payload 'resources/app'
+          $meta = Get-Content -Raw (Join-Path $app 'package.json') | ConvertFrom-Json
+          if ($meta.name -ne 'dsh-plugin-desktop' -or $meta.version -ne '2.0.11') { throw 'Unexpected application identity' }
+          $cargo = (& rustup which cargo).Trim()
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $cargo -PathType Leaf)) { throw 'Cargo not available' }
+          "PROBE_ROOT=$probeRoot" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PROBE_APP=$app" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PROBE_ELECTRON=$(Join-Path $payload 'DSH Desktop.exe')" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "PROBE_CARGO=$cargo" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Output "official_installer_sha256=$digest"
+          Write-Output "desktop=$($meta.version) dsh=$($meta.dependencies.'@deepseek-ai/dsh')"
+      - name: Compare Node and consoleless packaged Electron; record Cargo TLS separately
+        shell: pwsh
         env:
-          SMOKE_CHAIN: ${{ matrix.chain }}
-        run: node scripts/pwsh-sandbox-probe.mjs
+          CI: 'true'
+        run: node scripts/upstream-windows-probe.mjs
+      - name: Preserve synthetic evidence, not profiles or package payloads
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: upstream-windows-probe-${{ matrix.os }}
+          path: ${{ env.PROBE_ROOT }}/results/*.json
+          if-no-files-found: warn
