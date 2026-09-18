@@ -2,7 +2,7 @@
 /**
  * dsh-win32 CLI: `doctor` diagnoses the known DSH-on-Windows traps.
  * Current `setup` verifies the official Windows stack and creates a shortcut.
- * `setup --legacy` installs the old custom presets. Zero dependencies.
+ * `setup --legacy` installs the old custom presets.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -15,6 +15,7 @@ import { offerSetupStar } from './setup-consent.mjs'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
 import { supportsDshNode, verifyInstalledStack } from '../lib/verify.js'
+import { inspectLegacyPersonas } from '../lib/persona-diagnostic.js'
 
 const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
@@ -139,6 +140,12 @@ export function isBashWrapper(path) {
 /** Every win32 name below is meaningless elsewhere, hence `skip`. */
 const NOT_WINDOWS = 'win32 only, not applicable on this platform'
 
+function legacySetupCommand(profile, sandboxed = false, exactVersion = false) {
+  return `npx dsh-win32${exactVersion ? `@${SELF_VERSION}` : ''} setup --legacy --profile ${profile}${sandboxed ? ' --sandboxed' : ''}`
+}
+
+const LEGACY_RESET_NOTICE = 'This reinstalls default presets after backing up custom edits; review the backup before resuming'
+
 /**
  * Run the checks and return them in the `dsh-doctor/v1` vocabulary
  * (deepseek-harness#1719). `status` is pass / warn / fail, plus `skip` for a
@@ -149,6 +156,8 @@ const NOT_WINDOWS = 'win32 only, not applicable on this platform'
  */
 function collectChecks({ legacy = false, profile = 'web' } = {}) {
   const checks = []
+  const sandboxedPreset = existsSync(join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed'))
+  const legacyRepair = `${legacySetupCommand(profile, sandboxedPreset)}. ${LEGACY_RESET_NOTICE}`
   // `fix` is the instruction on its own, separate from the description. The
   // dsh-doctor v1.1 addendum aggregates these into `remediation`, and it
   // explicitly does not assume the field exists, so it stays optional here and
@@ -168,7 +177,7 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
   const pnpm = findPnpm()
   if (!legacy) add('pnpm', 'skip', 'current DSH setup does not install a bundle or custom preset')
   else if (pnpm !== undefined) add('pnpm', 'pass', pnpm)
-  else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it', 'npx dsh-win32 setup enables it through corepack, or: npm install -g pnpm')
+  else add('pnpm', 'warn', 'pnpm not found. The bundle installs into the profile dir with pnpm, so wiring fails without it', `${legacySetupCommand(profile, sandboxedPreset)} tries to enable it through corepack, or install pnpm explicitly: npm install -g pnpm. ${LEGACY_RESET_NOTICE}`)
 
   // Still vendor-prefixed because `installed_bundle` is only nominated for
   // r6/v1.1, not frozen (#1719). The four conditions and their statuses are
@@ -190,13 +199,13 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
   } else if (wiredBundle === SELF_VERSION) {
     add('dsh-win32/bundle', 'pass', wiredBundle)
   } else if (wiredBundle === 'wired, not installed') {
-    add('dsh-win32/bundle', 'warn', 'listed in the profile manifest but absent from its node_modules, so the runtime never loads', 'npx dsh-win32 setup')
+    add('dsh-win32/bundle', 'warn', 'listed in the profile manifest but absent from its node_modules, so the runtime never loads', legacyRepair)
   } else if (wiredBundle === 'unreadable') {
-    add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown', 'npx dsh-win32 setup')
+    add('dsh-win32/bundle', 'warn', 'the installed bundle manifest could not be read, so its version is unknown', legacyRepair)
   } else {
     // An exact version may still be held by the profile's release-age policy.
     // Keep the selected version visible without suggesting a policy bypass.
-    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}`, `npx dsh-win32@${SELF_VERSION} setup --legacy. If pnpm holds the release, retry after the configured minimum release age has elapsed; do not lower the policy`)
+    add('dsh-win32/bundle', 'warn', `profile runs ${wiredBundle}, this CLI is ${SELF_VERSION}`, `${legacySetupCommand(profile, sandboxedPreset, true)}. If pnpm holds the release, retry after the configured minimum release age has elapsed; do not lower the policy. ${LEGACY_RESET_NOTICE}`)
   }
 
   const release = dshReleaseMeta()
@@ -211,7 +220,7 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
 
   const gitBash = WIN ? findGitBash() : undefined
   if (!WIN) {
-    for (const name of ['git_bash', 'powershell', 'koffi', 'persistent_powershell', 'workspace_write', 'sandbox_shell', 'write_fence']) add(name, 'skip', NOT_WINDOWS)
+    for (const name of ['git_bash', 'powershell', 'koffi', 'persistent_powershell', 'workspace_write', 'sandbox_shell', 'write_fence', 'dsh-win32/persona']) add(name, 'skip', NOT_WINDOWS)
     return { checks, gitBash, official }
   }
 
@@ -242,6 +251,7 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
       add('sandbox_shell', 'warn', 'the official Workspace Write shell could not be confirmed', 'update @deepseek-ai/dsh')
     }
     add('write_fence', 'skip', 'the legacy preset fence check does not apply to the official DSH preset')
+    add('dsh-win32/persona', 'skip', 'current DSH mode does not inspect legacy custom presets')
     return { checks, gitBash, official }
   }
 
@@ -275,10 +285,10 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
 
   // MSYS bash dies under the workspace-write restricted token, so without the
   // busybox variant a sandboxed session has no working shell at all (#6).
-  if (existsSync(join(DSH_HOME, '.agent-presets', 'minimal-windows-sandboxed'))) {
-    add('sandbox_shell', 'pass', 'minimal-windows-sandboxed installed; persistent shell works inside workspace-write')
+  if (sandboxedPreset) {
+    add('sandbox_shell', 'pass', 'minimal-windows-sandboxed directory is present; this is not a live shell test')
   } else {
-    add('sandbox_shell', 'warn', 'only the Git Bash preset is installed, which needs danger-full-access', 'for a shell that survives the workspace-write sandbox: npx dsh-win32 setup --sandboxed')
+    add('sandbox_shell', 'warn', 'the sandboxed legacy preset is not installed; the Git Bash preset requires danger-full-access', `for the workspace-write legacy preset: ${legacySetupCommand(profile, true)}. ${LEGACY_RESET_NOTICE}`)
   }
 
   // Stock minimal mounts the bare fs-local, which reports no sandboxMode, so
@@ -289,14 +299,23 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
   const installed = ['minimal-windows', 'minimal-windows-sandboxed']
     .map((name) => ({ name, yml: join(DSH_HOME, '.agent-presets', name, 'agent.cordis.yml') }))
     .filter(({ yml }) => existsSync(yml))
-  const unfenced = installed.filter(({ yml }) => !readFileSync(yml, 'utf8').includes('dsh-win32/fs-confined'))
+  const unreadable = []
+  const unfenced = installed.filter(({ name, yml }) => {
+    try { return !readFileSync(yml, 'utf8').includes('dsh-win32/fs-confined') }
+    catch { unreadable.push(name); return false }
+  })
   if (installed.length === 0) {
     add('write_fence', 'skip', 'no dsh-win32 preset is installed')
+  } else if (unreadable.length > 0) {
+    add('write_fence', 'warn', `${unreadable.join(', ')} roster could not be read; the write fence is unverified`, 'inspect the affected roster locally; no files were changed')
   } else if (unfenced.length === 0) {
     add('write_fence', 'pass', `${installed.map(({ name }) => name).join(', ')} fence editor writes by the session permission mode`)
   } else {
-    add('write_fence', 'warn', `${unfenced.map(({ name }) => name).join(', ')} predates the write fence, so str_replace_editor can write outside the workspace under Read Only`, 'npx dsh-win32 setup')
+    add('write_fence', 'warn', `${unfenced.map(({ name }) => name).join(', ')} does not reference the legacy write fence; editor confinement is unverified`, legacyRepair)
   }
+
+  const persona = inspectLegacyPersonas(DSH_HOME)
+  add('dsh-win32/persona', persona.status, persona.detail, persona.fix)
 
   return { checks, gitBash, official }
 }
@@ -486,7 +505,7 @@ function substitutePreset(presetId, shellPath) {
 const BUSYBOX_URL = 'https://frippery.org/files/busybox/busybox64.exe'
 
 /** busybox-w32 is GPLv2 and therefore never bundled; fetched on explicit consent. */
-async function ensureBusybox() {
+async function ensureBusybox(profile) {
   const target = busyboxPath()
   if (existsSync(target)) return target
   console.log(`downloading busybox-w32 (GPLv2, single executable) from ${BUSYBOX_URL}`)
@@ -497,7 +516,7 @@ async function ensureBusybox() {
     response = await fetch(BUSYBOX_URL)
   } catch (error) {
     console.error('busybox download failed (network). If frippery.org is unreachable from your network,')
-    console.error('download busybox64.exe manually and pass it: npx dsh-win32 setup --sandboxed --busybox <path>')
+    console.error(`download busybox64.exe manually and pass it: ${legacySetupCommand(profile, true)} --busybox <path>`)
     throw error
   }
   if (!response.ok) throw new Error(`busybox download failed with HTTP ${response.status}. Pass --busybox <path> to use a local copy instead`)
@@ -607,7 +626,7 @@ async function setupLegacy(args) {
 
   if (sandboxed) {
     const busyboxFlag = args.indexOf('--busybox')
-    const busybox = busyboxFlag !== -1 ? args[busyboxFlag + 1] : (WIN ? await ensureBusybox() : undefined)
+    const busybox = busyboxFlag !== -1 ? args[busyboxFlag + 1] : (WIN ? await ensureBusybox(profile) : undefined)
     if (busybox === undefined) {
       console.error('setup: --sandboxed needs Windows (auto-download) or an explicit --busybox <path>')
       process.exit(1)
@@ -655,7 +674,7 @@ async function setupLegacy(args) {
     console.log('  3. preset picker > "Minimal (Windows, sandboxed)", leave the badge on Workspace Write')
   } else {
     console.log('  3. preset picker > "Minimal (Windows)", then switch the badge to danger-full-access')
-    console.log('     (Git Bash cannot run in the sandbox; re-run with --sandboxed for a preset that can)')
+    console.log(`     (Git Bash cannot run in the sandbox; use ${legacySetupCommand(profile, true)} for a preset that can)`)
   }
   offerSetupStar()
   console.log('')

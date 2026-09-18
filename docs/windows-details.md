@@ -105,6 +105,10 @@ Something already broken? `npx dsh-win32 doctor` names each known trap. `npx dsh
 
 ### Persona config recovery
 
+Run `npx dsh-win32 doctor --legacy --json --remediation --profile NAME` with your actual profile name. On Windows, the vendor-prefixed `dsh-win32/persona` check reads the two installed legacy rosters without changing files or printing prompt contents. It compares literal `text`/`prefix` values, including multiline YAML. Missing or different keys produce a warning and link here, not a command that resets your preset. Dynamic values, aliases, merge keys, duplicate keys, unsupported composition, and unreadable or oversized rosters are reported as unverified. JavaScript tags are never executed. Current DSH mode and non-Windows hosts skip this legacy-only check.
+
+Other legacy recovery commands preserve `--legacy`, your selected profile, and the sandboxed preset choice. Those explicit setup commands still reinstall defaults after backing up custom edits; they are not in-place persona repairs.
+
 If a legacy preset reports a missing `prefix` or `text` value, do not delete the preset directory. The published persona component changed its schema: `@deepseek-ai/dsh-persona@0.1.0-rc.6` requires `text`, while `0.1.5-rc.2` requires `prefix`. The 0.17.10 templates keep both keys with the same value. Renaming `text` to `prefix` alone breaks the supported rc.6 composition.
 
 For an existing custom preset:

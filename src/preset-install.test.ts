@@ -51,9 +51,12 @@ describe('installPresets', () => {
     const outcomes = installPresets(home)
     expect(outcomes.map(o => o.presetId)).toEqual(['minimal-windows', 'minimal-windows-sandboxed'])
     for (const outcome of outcomes) expect(outcome.status).not.toBe('failed')
-    // busybox is only ever fetched by `setup --sandboxed`, never silently.
+    // busybox is only ever fetched by `setup --legacy --sandboxed`, never silently.
     const sandboxed = outcomes.find(o => o.presetId === 'minimal-windows-sandboxed')!
-    if (!existsSync(busyboxPath())) expect(sandboxed.status).toBe('skipped')
+    if (!existsSync(busyboxPath())) {
+      expect(sandboxed.status).toBe('skipped')
+      expect(sandboxed.detail).toContain('setup --legacy --sandboxed')
+    }
   })
 
   it('resolves DSH_HOME from the environment', () => {

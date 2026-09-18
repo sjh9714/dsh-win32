@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -250,4 +250,70 @@ describe('the remediation field (dsh-doctor v1.1)', () => {
     const { envelope } = runDoctor({ DOCTOR_EXTRA_ARGS: '--remediation' })
     for (const line of envelope.remediation) expect(line.slice(KEY.exec(line)![0].length).trim()).not.toBe('')
   }, SPAWN_TIMEOUT)
+})
+
+describe('installed legacy preset diagnostics', () => {
+  function fixture(run: (home: string) => void) {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-doctor-legacy-'))
+    try { run(home) } finally { rmSync(home, { recursive: true, force: true }) }
+  }
+
+  function inspect(home: string, legacy = true) {
+    return runDoctor({
+      CI: 'true', DSH_HOME: home, DSH_WINDOWS_TEST_ROOT: home,
+      CLI_ARGS: `doctor --json --remediation --profile trial${legacy ? ' --legacy' : ''}`,
+    }, SIM).envelope
+  }
+
+  it('keeps the legacy mode, profile and sandboxed choice in recovery commands', () => fixture((home) => {
+    const profile = join(home, 'profiles', 'trial')
+    mkdirSync(profile, { recursive: true })
+    writeFileSync(join(profile, 'package.json'), JSON.stringify({ dsh: { profile: { bundles: ['dsh-win32'] } } }))
+    let report = inspect(home)
+    const check = (name: string) => report.checks.find((item: any) => item.name === name)
+    expect(check('dsh-win32/bundle').fix).toContain('setup --legacy --profile trial')
+    expect(check('sandbox_shell').fix).toContain('setup --legacy --profile trial --sandboxed')
+
+    const preset = join(home, '.agent-presets', 'minimal-windows-sandboxed')
+    mkdirSync(preset, { recursive: true })
+    writeFileSync(join(preset, 'agent.cordis.yml'), '- name: old-unfenced-backend\n')
+    report = inspect(home)
+    expect(check('write_fence').fix).toContain('setup --legacy --profile trial --sandboxed')
+    expect(check('write_fence').fix).toMatch(/back.*custom/i)
+
+    const installed = join(profile, 'node_modules', 'dsh-win32')
+    mkdirSync(installed, { recursive: true })
+    writeFileSync(join(installed, 'package.json'), JSON.stringify({ version: '0.1.0' }))
+    report = inspect(home)
+    expect(check('dsh-win32/bundle').fix).toContain('setup --legacy --profile trial --sandboxed')
+    expect(check('dsh-win32/bundle').fix).toContain('minimum release age')
+    writeFileSync(join(installed, 'package.json'), '{invalid')
+    report = inspect(home)
+    expect(check('dsh-win32/bundle').fix).toContain('setup --legacy --profile trial --sandboxed')
+  }), SPAWN_TIMEOUT * 2)
+
+  it('warns about missing persona keys without printing or changing the prompt', () => fixture((home) => {
+    const preset = join(home, '.agent-presets', 'minimal-windows')
+    mkdirSync(preset, { recursive: true })
+    const path = join(preset, 'agent.cordis.yml')
+    const source = '- name: "@deepseek-ai/dsh-persona"\n  config:\n    text: private-persona-canary\n'
+    writeFileSync(path, source)
+    const report = inspect(home)
+    const check = report.checks.find((item: any) => item.name === 'dsh-win32/persona')
+    expect(check?.status).toBe('warn')
+    expect(check.detail).toContain('prefix')
+    expect(check.fix).toContain('#persona-config-recovery')
+    expect(check.fix).not.toContain('setup')
+    expect(JSON.stringify(report)).not.toContain('private-persona-canary')
+    expect(readFileSync(path, 'utf8')).toBe(source)
+    expect(inspect(home, false).checks.find((item: any) => item.name === 'dsh-win32/persona')?.status).toBe('skip')
+  }), SPAWN_TIMEOUT)
+
+  it('keeps a valid JSON report when an installed roster is not readable as a file', () => fixture((home) => {
+    mkdirSync(join(home, '.agent-presets', 'minimal-windows', 'agent.cordis.yml'), { recursive: true })
+    const report = inspect(home)
+    expect(report.schema).toBe('dsh-doctor/v1')
+    expect(report.checks.find((item: any) => item.name === 'dsh-win32/persona')?.status).toBe('warn')
+    expect(report.checks.find((item: any) => item.name === 'write_fence')?.status).toBe('warn')
+  }), SPAWN_TIMEOUT)
 })

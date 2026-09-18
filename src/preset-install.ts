@@ -26,7 +26,7 @@ export function dshHome(): string {
   return process.env.DSH_HOME ?? join(homedir(), '.dsh')
 }
 
-/** Where `setup --sandboxed` puts the busybox it downloads. */
+/** Where `setup --legacy --sandboxed` puts the busybox it downloads. */
 export function busyboxPath(): string {
   return join(dshHome(), 'dsh-win32', 'busybox64.exe')
 }
@@ -87,7 +87,7 @@ export function installPreset(presetId: PresetId, shellPath: string, home = dshH
  * Install whatever can be installed without network access or user consent.
  *
  * The Git Bash preset needs a Git Bash. The sandboxed one needs a busybox that
- * only `setup --sandboxed` fetches, since busybox-w32 is GPLv2 and downloading
+ * only `setup --legacy --sandboxed` fetches, since busybox-w32 is GPLv2 and downloading
  * it silently during plugin load would be both a licence and a consent
  * problem. Missing either is `skipped`, not `failed`.
  */
@@ -103,7 +103,7 @@ export function installPresets(home = dshHome()): InstallOutcome[] {
 
   const busybox = busyboxPath()
   if (!existsSync(busybox)) {
-    outcomes.push({ presetId: 'minimal-windows-sandboxed', status: 'skipped', detail: 'no busybox; run: npx dsh-win32 setup --sandboxed' })
+    outcomes.push({ presetId: 'minimal-windows-sandboxed', status: 'skipped', detail: 'no busybox; run: npx dsh-win32 setup --legacy --sandboxed (add --profile NAME for a non-web profile; setup backs up custom presets and reinstalls defaults)' })
   } else {
     outcomes.push(installPreset('minimal-windows-sandboxed', busybox, home))
   }
