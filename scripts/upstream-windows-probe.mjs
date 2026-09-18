@@ -88,6 +88,8 @@ if (!process.argv.includes('--worker')) {
       lane === 'desktop' ? import(pathToFileURL(join(app, 'lib', 'windows-pwsh-sandbox.js')).href) : load('@deepseek-ai/dsh-pwsh-sandbox'),
     ])
     ctx = new Context()
+    const projection = await load('@deepseek-ai/dsh-session-projection')
+    await ctx.plugin(projection.default)
     await ctx.plugin(subprocess.default)
     await ctx.plugin(sandbox.default)
     await ctx.plugin(policy.default, { mode: 'workspace-write', workspaceRoot: workspace })
