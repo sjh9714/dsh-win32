@@ -2,7 +2,7 @@
 import { spawn, execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { release } from 'node:os'
 
@@ -26,6 +26,7 @@ if (!process.argv.includes('--worker')) {
     mkdirSync(runtimeTemp, { recursive: true })
     const env = {
       ...process.env, PROBE_LANE: lane, DSH_HOME: join(home, '.dsh'),
+      RUSTC: join(dirname(cargo), 'rustc.exe'),
       USERPROFILE: home, HOME: home, APPDATA: join(home, 'AppData', 'Roaming'),
       LOCALAPPDATA: join(home, 'AppData', 'Local'), TMP: runtimeTemp, TEMP: runtimeTemp,
     }
@@ -98,9 +99,9 @@ if (!process.argv.includes('--worker')) {
       return { exitCode: result.exitCode, timedOut: result.timedOut, aborted: result.aborted, sandbox: result.sandbox, stdout: clean(result.stdout.text), stderr: clean(result.stderr.text) }
     }
     const control = await run(`[IO.File]::WriteAllText(${pwshQuote(outside)}, 'control'); Write-Output 'CONTROL_OK'`, 'danger-full-access')
+    record('unconfined_write_control', { status: control.exitCode === 0 && existsSync(outside) ? 'pass' : 'fail', ...control })
     if (control.exitCode !== 0 || !existsSync(outside)) throw new Error('Unconfined outside-write control failed')
     rmSync(outside)
-    record('unconfined_write_control', { status: 'pass', ...control })
     const inside = join(workspace, 'inside.txt')
     const confined = await run(`[IO.File]::WriteAllText(${pwshQuote(inside)}, 'inside'); try { [IO.File]::WriteAllText(${pwshQuote(outside)}, 'unexpected'); exit 71 } catch { Write-Output 'OUTSIDE_DENIED'; exit 0 }`)
     const confinedOk = confined.exitCode === 0 && existsSync(inside) && !existsSync(outside) && confined.stdout.includes('OUTSIDE_DENIED')
@@ -126,6 +127,7 @@ if (!process.argv.includes('--worker')) {
     const pidFile = join(workspace, 'cancel-pid.txt')
     const controller = new AbortController()
     const pending = run(`[IO.File]::WriteAllText(${pwshQuote(pidFile)}, [string]$PID); Start-Sleep -Seconds 60`, 'workspace-write', { signal: controller.signal, timeoutMs: 90_000 })
+      .catch(error => ({ error: clean(error.message) }))
     for (let attempt = 0; attempt < 100 && !existsSync(pidFile); attempt++) await pause(100)
     controller.abort(new Error('probe cancellation'))
     let cancellation
