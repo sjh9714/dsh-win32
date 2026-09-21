@@ -56,6 +56,14 @@ npx dsh-win32 setup --profile desktop --no-shortcut
 
 ## Live verification of an installed stack
 
+From **0.17.12**, opt in to setup followed by one installed-stack check:
+
+```powershell
+npx dsh-win32 setup --verify
+```
+
+Use `--profile NAME --no-shortcut` when appropriate. Ordinary `setup` is unchanged; `--legacy --verify` is rejected. Setup and component acceptance are reported separately, and a failed or unsupported verification makes the command exit nonzero. This does not install DSH or prove a complete Desktop/Minimal session. For a check without setup or JSON output, use the standalone command:
+
 ```powershell
 npx dsh-win32 verify
 npx dsh-win32 verify --json

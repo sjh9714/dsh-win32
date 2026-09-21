@@ -184,6 +184,16 @@ jobs:
           $official = Join-Path $env:RUNNER_TEMP "dsh-official"
           $env:DSH_WIN32_VERIFY_DSH = Join-Path $official "node_modules/@deepseek-ai/dsh/package.json"
           node bin/cli.mjs verify
+      - name: opt-in setup verification on the same installed stack
+        timeout-minutes: 6
+        shell: pwsh
+        run: |
+          $official = Join-Path $env:RUNNER_TEMP "dsh-official"
+          $env:DSH_WIN32_VERIFY_DSH = Join-Path $official "node_modules/@deepseek-ai/dsh/package.json"
+          $env:DSH_HOME = Join-Path $env:RUNNER_TEMP "setup-verify-isolated-home"
+          node bin/cli.mjs setup --verify --profile acceptance --no-shortcut
+          if ($LASTEXITCODE -ne 0) { throw "setup --verify failed with exit $LASTEXITCODE" }
+          if (Test-Path $env:DSH_HOME) { throw 'setup verification unexpectedly wrote profile data' }
 
   sandbox-experiment:
     if: github.event_name != 'schedule'

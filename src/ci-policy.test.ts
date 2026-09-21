@@ -33,4 +33,11 @@ describe('official Windows acceptance policy', () => {
       .toBeLessThan(gate.indexOf('if [ "$EVENT_NAME" != schedule ]'))
     expect(gate).not.toContain('continue-on-error')
   })
+
+  it('exercises opt-in setup verification without replacing standalone acceptance', () => {
+    expect(workflow).toContain('node bin/cli.mjs verify')
+    expect(workflow).toContain('node bin/cli.mjs setup --verify --profile acceptance --no-shortcut')
+    expect(workflow).toContain('setup-verify-isolated-home')
+    expect(workflow).toContain('setup verification unexpectedly wrote profile data')
+  })
 })

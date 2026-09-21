@@ -593,6 +593,15 @@ async function setupCurrent(args) {
   offerSetupStar()
   console.log('')
   console.log(`${REPO}  (Windows fixes, doctor output, and legacy rc.6 support)`)
+
+  if (args.includes('--verify')) {
+    console.log('')
+    console.log('setup finished; running the optional installed-stack check')
+    // Reuse the standalone verifier, including installed identity, isolation,
+    // cleanup and nonzero failure/unsupported exit semantics. Setup metadata
+    // and a shortcut are not evidence that this component check passed.
+    await verify({ profile })
+  }
 }
 
 async function setupLegacy(args) {
@@ -683,6 +692,11 @@ async function setupLegacy(args) {
 
 async function main([command, ...rest]) {
   if (command === 'setup') {
+    if (rest.includes('--legacy') && rest.includes('--verify')) {
+      console.error('setup: --verify is only supported by current DSH setup, not --legacy')
+      process.exitCode = 1
+      return
+    }
     if (rest.includes('--legacy')) await setupLegacy(rest.filter((arg) => arg !== '--legacy'))
     else await setupCurrent(rest)
   }
@@ -702,10 +716,11 @@ async function main([command, ...rest]) {
       profile,
     }).exitCode
   } else if (command === 'help' || command === '--help' || command === '-h') {
-    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
+    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
     console.log('  verify  Live, model/API-free acceptance of an already-installed official DSH Windows component chain')
+    console.log('  setup --verify  Run setup, then the same component check once; nonzero exit on failure or unsupported runtime (not available with --legacy)')
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
     process.exit(1)
   }
 }

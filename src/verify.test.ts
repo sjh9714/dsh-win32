@@ -142,6 +142,21 @@ describe('verify runtime eligibility', () => {
 })
 
 describe('verify isolation orchestration with fakes', () => {
+  it('fails before creating temporary state when no installed DSH host is found', async () => {
+    const makeDirectories = vi.fn()
+    const runWorker = vi.fn()
+    const report = await verifyInstalledStack({}, fakeDependencies({
+      findInstalledDsh: () => undefined,
+      makeDirectories,
+      runWorker,
+    }))
+    expect(report.ok).toBe(false)
+    expect(report.status).toBe('fail')
+    expect(report.checks[0]?.name).toBe('installed_dsh')
+    expect(makeDirectories).not.toHaveBeenCalled()
+    expect(runWorker).not.toHaveBeenCalled()
+  })
+
   it('finds the shared profiles/node_modules DSH layout used by current installs', () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-win32-shared-profile-'))
     const manifest = join(home, 'profiles', 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
