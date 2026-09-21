@@ -27,6 +27,16 @@ If no supported repair applies, retain the failed check and its short error. Rep
 
 ## Verify the installed stack
 
+From dsh-win32 **0.17.12**, combine current-mode setup and one installed-stack check:
+
+```powershell
+npx dsh-win32 setup --verify
+```
+
+Add `--profile NAME --no-shortcut` to keep a selected profile and skip the shortcut. Ordinary `setup` is unchanged. The optional check reports the actually installed DSH version/source, separately from setup's registry metadata, and returns nonzero for a failed or unsupported verification. It does not install missing prerequisites or change profile/package-manager policy. `setup --legacy --verify` is rejected before legacy setup runs.
+
+For verification without setup, or for machine-readable results, keep using:
+
 ```powershell
 npx dsh-win32 verify --json
 ```
@@ -39,19 +49,21 @@ When a coding agent's outer sandbox blocks the verifier, request access for this
 
 A successful CLI component check does not validate Electron's packaged process-launch chain. Keep the exact Desktop version, bundled DSH version, and short error separate from the CLI result.
 
-Match the error to its own upstream path; an open issue does not necessarily mean no fix has shipped. Release status checked on **2026-09-14**:
+Match the error to its own upstream path; issue closure and a green build are not complete-session evidence. Release status checked on **2026-09-21**. The latest [Desktop 2.0.13](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.13) bundles DSH `0.1.5-rc.2`:
 
 | Reported error | Evidence and boundary |
 | --- | --- |
-| `0xC0000142` / `STATUS_DLL_INIT_FAILED`, or a PTY startup failure associated with restricted-token launch | [Desktop PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) investigates the Electron-to-Windows-ACL runner path. A generic PTY startup message alone does not establish this cause. |
-| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [#924](https://github.com/anywhere-labs/dsh-desktop/issues/924) and [#933](https://github.com/anywhere-labs/dsh-desktop/issues/933) track this signature. [PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) added Node mode for Electron's private Windows Job runner, without changing the target command's environment. The fix shipped in [Desktop 2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) and remains in 2.0.10. |
+| `0xC0000142` / `STATUS_DLL_INIT_FAILED` in consoleless restricted-token shell startup | [PR #990](https://github.com/anywhere-labs/dsh-desktop/pull/990) shipped in [Desktop 2.0.11](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.11) and is included in 2.0.13. [PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) was closed without merging; that does not make #990 unreleased. A generic PTY error does not identify this cause. |
+| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) and [#931](https://github.com/anywhere-labs/dsh-desktop/pull/931) repair the private Electron Job-runner path, shipped since [2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9). The maintainer [closed #933 for that original signature](https://github.com/anywhere-labs/dsh-desktop/issues/933#issuecomment-5748645422), not every later terminal failure. |
+| `PTY shell exited during startup`, with a silent ConPTY runner exit `127` | [#1051](https://github.com/anywhere-labs/dsh-desktop/issues/1051) remains open: a Windows 11 user reports persistent-terminal failure on 2.0.13 with Store/MSIX PowerShell. A fresh-profile comparison was not run. This report is not our independent reproduction and is distinct from the foreground executor fixed by #990. |
 | `Cannot mix BigInt and other types` during bundled-skill discovery or ASAR directory metadata access | [PR #973](https://github.com/anywhere-labs/dsh-desktop/pull/973), included in [Desktop 2.0.10](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.10), removes ASAR packaging and adds packaged-filesystem checks. An unrelated BigInt error is not evidence of this cause. |
+| Cargo/Schannel `SEC_E_NO_CREDENTIALS` (`0x8009030e`) fetching crates.io under Workspace Write | Our [separate TLS reproduction](https://github.com/deepseek-ai/deepseek-harness/discussions/986#discussioncomment-18494537) remains unresolved. Shell startup succeeding does not prove HTTPS works. Do not disable certificate checks or widen permissions to turn this into a pass. |
 
-Desktop 2.0.10 bundles DSH `0.1.5-rc.2`. Its [release-commit CI](https://github.com/anywhere-labs/dsh-desktop/actions/runs/34783941380) passed the Stable and Beta Windows package checks and installer/portable builds. The [Windows report on PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927#issuecomment-5620391833) demonstrated the runner mechanism with a local modification to 2.0.7, not a corrected release installation. Neither that report nor a build pass establishes a complete packaged Desktop/Minimal session, PTY cancellation, or cleanup.
+Our [2026-09-18 payload probe](https://github.com/anywhere-labs/dsh-desktop/issues/924#issuecomment-5725248498) verified the official **2.0.11 x64 Setup.exe checksum, then extracted it without installing it**. On Windows Server 2022 and 2025, using Node 22.19 and the payload's Electron 43.3.0/Node 24.18.1, the four combinations passed foreground PowerShell startup, inside writes, outside-write denial, cancellation/direct-child termination, and context cleanup. The Desktop path used its released `DesktopWindowsPwshSandbox` implementation. This was not normal Desktop UI, persistent PTY, glob/grep, hooks, Blue, stock Minimal, or model-session acceptance, and it does not independently validate 2.0.13.
 
-For an older Desktop with the Job-runner or ASAR signature, record the failing version, quit the application, and use its official release/update instructions before repeating the same task with unchanged permissions. Record the installed version and whether the original error recurs. dsh-win32 has not independently validated the corrected Windows installer; keep that result separate from the CLI component check and keep the full-session acceptance gate in place.
+In that same probe, Cargo 1.98.1 fetched `itoa 1.0.15` in each unconfined control but failed TLS in all four Workspace Write cases. The [diagnostic run is red](https://github.com/sjh9714/dsh-win32/actions/runs/35307547925) because that TLS test failed; it did not invoke dsh-win32's runtime. The separate [dsh-win32 0.17.11 release CI is green](https://github.com/sjh9714/dsh-win32/actions/runs/35307413235). The [pinned diagnostic source](https://github.com/sjh9714/dsh-win32/blob/501f6f8516713f47fe8ef7690b7527ee90b34dec/scripts/upstream-windows-probe.mjs) was not shipped in the npm package.
 
-Do not disable antivirus, widen the session's permissions, replace packaged runtime files, or assume the Job-runner or ASAR changes repair the restricted-token ACL path. dsh-win32's `fix` currently repairs verified koffi problems only. Retain any remaining failure and follow the matching upstream report.
+For an older Desktop with a matching released fix, record the failing version, quit the application, and follow its official update instructions before repeating the same task with unchanged permissions. Record the actual installed version and any remaining error. Keep the [full-session gate](https://github.com/sjh9714/dsh-win32/issues/84) and [Blue gate](https://github.com/sjh9714/dsh-win32/issues/55) in place. Do not disable Defender/antivirus, TLS verification, or Workspace Write, and do not replace packaged runtime files. dsh-win32's `fix` repairs verified koffi problems only, not the remaining upstream failures.
 
 ## If a running session disconnects with `spillAll` / `ENOENT`
 

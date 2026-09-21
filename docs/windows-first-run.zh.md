@@ -41,6 +41,16 @@ npx dsh-win32 setup
 
 ## 3. 验证真正安装的组件，而不只看命令成功
 
+从 dsh-win32 **0.17.12** 开始，可在当前模式下用一条命令完成 setup，再执行一次组件验收：
+
+```powershell
+npx dsh-win32 setup --verify
+```
+
+使用 `--profile NAME --no-shortcut` 可保留选定的 profile 并跳过快捷方式。普通 `setup` 行为不变。可选验收会另行报告实际安装的 DSH 版本与来源，不把 setup 查询到的 registry metadata 当作已安装证据；验收失败或环境不受支持时以非零退出。它不会安装缺少的软件，也不会改写 profile 或包管理器政策。`setup --legacy --verify` 会在执行旧版安装之前被明确拒绝。
+
+不需要 setup 或需要机器可读输出时，仍可单独运行：
+
 ```powershell
 npx dsh-win32 verify --json
 ```
@@ -53,19 +63,21 @@ npx dsh-win32 verify --json
 
 ## 4. 只有 DSH Desktop 失败时
 
-CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；不能仅凭 issue 仍然开放就判断修复尚未发布。以下发布状态核对于 **2026-09-14**：
+CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；issue 关闭或构建通过也不是完整会话证据。以下发布状态核对于 **2026-09-21**，最新 [Desktop 2.0.13](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.13) 内置 DSH `0.1.5-rc.2`：
 
 | 错误特征 | 上游证据与边界 |
 | --- | --- |
-| `0xC0000142` / `STATUS_DLL_INIT_FAILED`，或与受限令牌启动有关的 PTY 失败 | [Desktop PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) 调查 Electron 到 Windows ACL runner 的路径。普通 PTY 启动报错本身不能证明是这个原因。 |
-| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [#924](https://github.com/anywhere-labs/dsh-desktop/issues/924) 和 [#933](https://github.com/anywhere-labs/dsh-desktop/issues/933) 记录了该特征。[PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) 只为 Electron 的私有 Windows Job runner 启用 Node 模式，不改变目标命令的环境。修复已包含在 [Desktop 2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) 中，2.0.10 继续保留。 |
+| 无控制台宿主的受限令牌 shell 启动报 `0xC0000142` / `STATUS_DLL_INIT_FAILED` | [PR #990](https://github.com/anywhere-labs/dsh-desktop/pull/990) 已随 [Desktop 2.0.11](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.11) 发布，2.0.13 也包含它。[PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) 未合并而关闭，不代表 #990 尚未发布。普通 PTY 报错本身不能证明是这个原因。 |
+| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) 和 [#931](https://github.com/anywhere-labs/dsh-desktop/pull/931) 修复私有 Electron Job runner 路径，自 [2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) 起发布。维护者[按这个原始特征关闭了 #933](https://github.com/anywhere-labs/dsh-desktop/issues/933#issuecomment-5748645422)，不是宣布后续所有终端问题已解决。 |
+| `PTY shell exited during startup`，ConPTY runner 无输出并以 `127` 退出 | [#1051](https://github.com/anywhere-labs/dsh-desktop/issues/1051) 仍开放：Windows 11 用户报告 2.0.13 配合 Store/MSIX PowerShell 的持久终端启动失败，未做全新 profile 对照。这不是我们的独立复现，且与 #990 覆盖的一次性执行器不同。 |
 | 内置技能发现或 ASAR 目录元数据访问时出现 `Cannot mix BigInt and other types` | [PR #973](https://github.com/anywhere-labs/dsh-desktop/pull/973) 取消 ASAR 打包并增加打包后文件系统检查，已包含在 [Desktop 2.0.10](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.10) 中。其他位置的 BigInt 错误不一定同源。 |
+| Cargo/Schannel 在 Workspace Write 下访问 crates.io 报 `SEC_E_NO_CREDENTIALS`（`0x8009030e`） | 我们的[独立 TLS 复现](https://github.com/deepseek-ai/deepseek-harness/discussions/986#discussioncomment-18494537) 尚未解决。shell 能启动不代表 HTTPS 可用；不要关闭证书验证或放宽权限来凑出通过结果。 |
 
-Desktop 2.0.10 内置 DSH `0.1.5-rc.2`。[发布提交的 CI](https://github.com/anywhere-labs/dsh-desktop/actions/runs/34783941380) 已通过 Stable/Beta 的 Windows 打包检查及安装包、Portable 构建。[PR #927 的 Windows 实测](https://github.com/anywhere-labs/dsh-desktop/pull/927#issuecomment-5620391833) 验证的是本地修改后的 2.0.7 中的 runner 机制，不是修复后发布的安装包。这些证据都不能替代完整 Desktop/Minimal 会话、PTY 中断与清理的验收。
+我们的 [2026-09-18 payload 检查](https://github.com/anywhere-labs/dsh-desktop/issues/924#issuecomment-5725248498) 核对官方 **2.0.11 x64 Setup.exe 的校验和后，只解包，没有安装**。Windows Server 2022/2025 分别搭配 Node 22.19 和 payload 中的 Electron 43.3.0/Node 24.18.1，共四组通过前台 PowerShell 启动、工作区内写入、外部写入拒绝、中断及直接子进程退出、context 清理。Desktop 路径使用发布的 `DesktopWindowsPwshSandbox`。这没有验收正常 Desktop UI、持久 PTY、glob/grep、hook、Blue、stock Minimal 或模型会话，也不独立证明 2.0.13 正常。
 
-旧版 Desktop 出现对应的 Job runner 或 ASAR 错误时，先记录失败版本、退出应用，再按其官方发布或更新说明升级，并在不改变权限的前提下重试同一任务。记录实际安装版本及原错误是否重现。dsh-win32 尚未独立验证修复后的 Windows 安装包；请与 CLI 组件结果分开记录，继续保留完整会话验收门槛。
+同次检查中，Cargo 1.98.1 获取 `itoa 1.0.15` 的四组非限制对照都成功，四组 Workspace Write 都在 TLS 处失败。因此[诊断 run 为红色](https://github.com/sjh9714/dsh-win32/actions/runs/35307547925)，它没有调用 dsh-win32 runtime；独立的 [dsh-win32 0.17.11 发布 CI 为绿色](https://github.com/sjh9714/dsh-win32/actions/runs/35307413235)。[固定版本的诊断源码](https://github.com/sjh9714/dsh-win32/blob/501f6f8516713f47fe8ef7690b7527ee90b34dec/scripts/upstream-windows-probe.mjs) 没有包含在 npm 包中。
 
-不要关闭杀毒软件、扩大权限、替换应用内的 runtime 文件，也不要假设 Job runner 或 ASAR 修复能解决受限令牌 ACL 路径。dsh-win32 的 `fix` 目前只修复已确认的 koffi 问题。仍失败时保留最短错误，并跟进对应上游报告。
+旧版 Desktop 若匹配某个已发布修复，先记录失败版本、退出应用，再按官方更新说明升级，并在不改变权限的前提下重试同一任务，记录真实安装版本及剩余错误。继续保留[完整会话门槛](https://github.com/sjh9714/dsh-win32/issues/84)和 [Blue 门槛](https://github.com/sjh9714/dsh-win32/issues/55)。不要关闭 Defender/杀毒软件、TLS 验证或 Workspace Write，也不要替换打包 runtime。dsh-win32 的 `fix` 只修复已确认的 koffi 问题，不修复这些尚未解决的上游故障。
 
 ## 5. 运行中因 `spillAll` / `ENOENT` 断开
 

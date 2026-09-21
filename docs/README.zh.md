@@ -41,6 +41,14 @@ npx dsh-win32 setup
 
 安装后打开 DSH，添加工作区，选择官方 **Minimal**，权限保持 **Workspace Write**。
 
+从 **0.17.12** 开始，可显式选择 setup 后执行一次已安装组件验收：
+
+```powershell
+npx dsh-win32 setup --verify
+```
+
+按需添加 `--profile NAME --no-shortcut`。普通 `setup` 不变，`--legacy --verify` 被拒绝。Setup 与组件验收分开报告；验收失败或环境不受支持时命令以非零退出。它不会安装 DSH，也不证明完整 Desktop/Minimal 会话通过。不需要 setup 或需要 JSON 时，使用 `npx dsh-win32 verify --json`。
+
 ## 体检与安全修复
 
 ```powershell
