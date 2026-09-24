@@ -151,6 +151,10 @@ The status literals are `pass`, `warn`, `fail` and `skip`. `node` is two-state o
 
 A green dsh-win32 `verify` report intentionally makes no claim about either path. Its machine-readable `boundary` names the plugin installer and hook bridges as excluded.
 
+## Disable or uninstall an existing installation
+
+For retiring an existing installation, use the [disable / uninstall / remove guide](./uninstall.md) ([中文](./uninstall.zh.md)). It includes recovery without starting DSH, custom patch and preset handling, and backup restoration.
+
 ## Writing your own preset on Windows
 
 If your preset mounts `@deepseek-ai/dsh-terminal-bash` without an explicit `shellPath`, the default `/bin/bash` resolves to `C:\Windows\System32\bash.exe` on Windows, the WSL launcher, and the PTY exits at startup. Point it at the real shell instead.

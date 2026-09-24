@@ -20,6 +20,8 @@ Using a coding agent? [Copy the setup and verification request](https://github.c
 
 Start with the [Windows first-run walkthrough](./docs/windows-first-run.md) if DSH will not launch or a check fails. It follows one problem from diagnosis through the next verification step. [Share your first-run result](https://github.com/sjh9714/dsh-win32/issues/new?template=first-run.md), including attempts that are still blocked.
 
+**Need to disable or uninstall the old plugin, even when DSH cannot start?** See [disable / uninstall / remove](./docs/uninstall.md). From 0.17.14, `npx dsh-win32@0.17.14 disable --profile web` previews offline deactivation; after stopping DSH, add `--apply` to back up the manifest and disconnect only the old bundle.
+
 <p>
 <a href="https://www.npmjs.com/package/dsh-win32"><img src="https://img.shields.io/npm/v/dsh-win32?style=flat-square&label=npm&color=cb3837" alt="npm"></a>
 <a href="https://github.com/sjh9714/dsh-win32/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sjh9714/dsh-win32/ci.yml?style=flat-square&label=CI" alt="CI"></a>
