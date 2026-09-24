@@ -133,6 +133,8 @@ DSH rc.6 and older did not ship the current official PowerShell stack. The previ
 
 The package's `@deepseek-ai/dsh-subprocess-local` peer range, `>=0.1.0-rc.5 <0.1.0-rc.7`, intentionally bounds that legacy bundle. It is not the host version range for the standalone `setup`, `doctor`, or `verify` commands, which do not wire the bundle into current DSH. A successful `dsh plugin add` is not compatibility evidence; the missing host-peer warning is tracked in [upstream #6680](https://github.com/deepseek-ai/deepseek-harness/discussions/6680).
 
+If a newer host reports `skipping profile bundle "dsh-win32"` or an incompatible subprocess peer, do not widen the range or grant an `allow-version` exemption as a repair. DSH `0.1.7-rc.1` requires a different process-inspector snapshot contract from this legacy bundle; the bundle is not compatible merely because it loads or `--dump-config` succeeds. Follow the [compatibility-warning migration guide](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.md#if-dsh-skips-the-legacy-dsh-win32-bundle). Current DSH already has its own Windows process inspector.
+
 If a current DSH profile already lists dsh-win32 as a plugin, run `npx dsh-win32 doctor --profile NAME` with that profile's actual name. Doctor warns about the legacy bundle and suggests a removal command; it does not remove anything. Review and back up the affected profile before deciding whether to remove it.
 
 ```powershell
