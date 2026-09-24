@@ -196,6 +196,7 @@ describe('setup on Windows', () => {
         ...process.env,
         DSH_HOME: home,
         DSH_NPX_ARGS: npxArgs,
+        CI: 'true', // Bundle wiring is not an account/browser integration test.
         PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
         DSH_WINDOWS_DSH_META: DSH_META,
       },
