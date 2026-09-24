@@ -118,6 +118,7 @@ describe('setup on Windows', () => {
     expect(run.status).toBe(0)
     expect(run.stdout).toContain('current DSH already includes persistent PowerShell')
     expect(run.stdout).toContain('--sandboxed is no longer needed')
+    expect(run.stdout).toContain('WIN32_SIM_BROWSER: no browser process was started')
     expect(run.stdout).not.toContain('[Y/n]')
     expect(run.stdout).not.toContain('USER_CONFIRMATION_REQUIRED')
     expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(true)
@@ -141,6 +142,7 @@ describe('setup on Windows', () => {
 
     expect(run.status).toBe(0)
     expect(run.stdout).toContain('Git Bash was not found; skipped the "minimal-windows" preset')
+    expect(run.stdout).toContain('WIN32_SIM_BROWSER: no browser process was started')
     expect(run.stdout).not.toContain('[Y/n]')
     expect(run.stdout).not.toContain('USER_CONFIRMATION_REQUIRED')
     expect(existsSync(join(home, '.dsh-win32-star-prompted'))).toBe(true)
@@ -163,6 +165,7 @@ describe('setup on Windows', () => {
     const { home, run } = runSetup({ sandboxed: true, bash })
 
     expect(run.status).toBe(0)
+    expect(run.stdout).toContain('WIN32_SIM_BROWSER: no browser process was started')
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows'))).toBe(true)
     expect(existsSync(join(home, '.agent-presets', 'minimal-windows-sandboxed'))).toBe(true)
   }, SPAWN_TIMEOUT)
@@ -193,6 +196,7 @@ describe('setup on Windows', () => {
         ...process.env,
         DSH_HOME: home,
         DSH_NPX_ARGS: npxArgs,
+        CI: 'true', // Bundle wiring is not an account/browser integration test.
         PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
         DSH_WINDOWS_DSH_META: DSH_META,
       },

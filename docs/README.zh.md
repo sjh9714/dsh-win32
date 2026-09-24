@@ -16,6 +16,8 @@ npx dsh-win32 setup
 
 [English](../README.md) · [Windows 实证与旧版细节](./windows-details.md)
 
+**DSH 已经坏了，想禁用/卸载旧插件？** 请看[禁用、卸载与恢复（disable / uninstall / remove）](./uninstall.zh.md)。从 0.17.14 起，`npx dsh-win32@0.17.14 disable --profile web` 可离线预览；关闭 DSH 后添加 `--apply`，先备份 manifest，再解除旧 bundle 启用，不需要 DSH 能启动。
+
 让 coding agent 帮忙时，可以复制[安装与验收指令](https://github.com/sjh9714/dsh-win32/blob/master/docs/agent-setup.md#中文)。第一次排错请看[Windows PowerShell 故障：先诊断，再验证](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md)。
 
 <p>

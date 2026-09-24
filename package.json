@@ -1,6 +1,6 @@
 {
   "name": "dsh-win32",
-  "version": "0.17.13",
+  "version": "0.17.14",
   "description": "Fix and diagnose DeepSeek Harness on native Windows. Official PowerShell, Workspace Write, shortcuts, and legacy preset repair. No WSL.",
   "type": "module",
   "license": "MIT",
@@ -57,6 +57,8 @@
     "preset",
     "docs/README.zh.md",
     "docs/windows-details.md",
+    "docs/uninstall.md",
+    "docs/uninstall.zh.md",
     "assets/demo.gif",
     "assets/shot-persistent-sandboxed.png",
     "assets/shot-persistent-gitbash.png",

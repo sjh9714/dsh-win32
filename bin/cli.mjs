@@ -16,6 +16,7 @@ import { offerSetupStar } from './setup-consent.mjs'
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
 import { supportsDshNode, verifyInstalledStack } from '../lib/verify.js'
 import { inspectLegacyPersonas } from '../lib/persona-diagnostic.js'
+import { disableProfile } from '../lib/profile-disable.js'
 
 const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
@@ -193,7 +194,7 @@ function collectChecks({ legacy = false, profile = 'web' } = {}) {
   if (!legacy && wiredBundle === undefined) {
     add('dsh-win32/bundle', 'pass', 'not wired into the profile, which is correct for current DSH')
   } else if (!legacy) {
-    add('dsh-win32/bundle', 'warn', `legacy bundle ${wiredBundle} is still wired into profile "${profile}"`, `npx @deepseek-ai/dsh plugin --profile ${profile} remove dsh-win32`)
+    add('dsh-win32/bundle', 'warn', `legacy bundle ${wiredBundle} is still wired into profile "${profile}"`, `npx dsh-win32@${SELF_VERSION} disable --profile ${profile} (preview; stop DSH and add --apply to back up and disable the bundle)`)
   } else if (wiredBundle === undefined) {
     add('dsh-win32/bundle', 'skip', 'no legacy bundle listed in the profile manifest, so there is nothing to compare the CLI against')
   } else if (wiredBundle === SELF_VERSION) {
@@ -690,6 +691,34 @@ async function setupLegacy(args) {
   console.log(`${REPO}  (docs, known Windows traps, and where to report what broke)`)
 }
 
+function disable(args) {
+  try {
+    const options = { home: DSH_HOME }
+    for (let index = 0; index < args.length; index += 1) {
+      const arg = args[index]
+      if (arg === '--apply' && options.apply === undefined) options.apply = true
+      else if ((arg === '--profile' || arg === '--profile-dir') && args[index + 1] && !args[index + 1].startsWith('--')) {
+        const key = arg === '--profile' ? 'profile' : 'profileDir'
+        if (options[key] !== undefined) throw new Error(`duplicate ${arg}`)
+        options[key] = args[++index]
+      } else throw new Error('usage: dsh-win32 disable [--profile <name> | --profile-dir <directory>] [--apply]')
+    }
+    const result = disableProfile(options)
+    console.log(`Profile manifest: ${result.manifestPath}`)
+    if (result.status === 'preview') {
+      console.log('Preview: remove dsh-win32 from dsh.profile.bundles only; no files changed.')
+      console.log('Stop DSH and its sessions, then repeat this command with --apply to create a backup and disable the bundle.')
+    } else if (result.status === 'disabled') {
+      console.log('Disabled the dsh-win32 bundle in this profile without starting DSH.')
+      console.log(`Original backup: ${result.backupPath}`)
+    } else console.log('dsh-win32 is already absent from this profile bundle list; no files changed.')
+    for (const note of result.notes) console.log(note)
+  } catch (error) {
+    console.error(`disable: ${error.message}`)
+    process.exitCode = 1
+  }
+}
+
 async function main([command, ...rest]) {
   if (command === 'setup') {
     if (rest.includes('--legacy') && rest.includes('--verify')) {
@@ -700,6 +729,7 @@ async function main([command, ...rest]) {
     if (rest.includes('--legacy')) await setupLegacy(rest.filter((arg) => arg !== '--legacy'))
     else await setupCurrent(rest)
   }
+  else if (command === 'disable') disable(rest)
   else if (command === 'fix') fix()
   else if (command === 'verify') {
     const profile = profileFrom(rest, 'verify')
@@ -716,11 +746,12 @@ async function main([command, ...rest]) {
       profile,
     }).exitCode
   } else if (command === 'help' || command === '--help' || command === '-h') {
-    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
+    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|disable [--profile <name> | --profile-dir <directory>] [--apply]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
     console.log('  verify  Live, model/API-free acceptance of an already-installed official DSH Windows component chain')
     console.log('  setup --verify  Run setup, then the same component check once; nonzero exit on failure or unsupported runtime (not available with --legacy)')
+    console.log('  disable [--profile <name> | --profile-dir <directory>] [--apply]  Preview offline legacy bundle deactivation; --apply backs up and updates only the activation list')
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Usage is dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]`)
+    console.error(`unknown command ${JSON.stringify(command)}. Run dsh-win32 help for setup, doctor, verify, disable and fix.`)
     process.exit(1)
   }
 }

@@ -14,6 +14,23 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import process from 'node:process'
+import childProcess from 'node:child_process'
+import { syncBuiltinESMExports } from 'node:module'
+
+// Setup fixtures deliberately clear CI flags to exercise the recorded-star
+// path. Never let that simulation use a real account or launch a GUI browser
+// (rundll32 can keep a headless Windows test alive). The consent unit tests
+// cover the authenticated branch separately with injected probe/execute fakes.
+const execute = childProcess.execFileSync
+childProcess.execFileSync = (file, args, options) => {
+  if (file === 'gh.exe') throw new Error('win32-sim has no authenticated GitHub account')
+  if (file === 'rundll32.exe') {
+    console.log('WIN32_SIM_BROWSER: no browser process was started')
+    return ''
+  }
+  return execute(file, args, options)
+}
+syncBuiltinESMExports()
 
 Object.defineProperty(process, 'platform', { value: 'win32' })
 

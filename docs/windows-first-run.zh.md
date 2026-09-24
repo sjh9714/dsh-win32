@@ -49,7 +49,7 @@ npx dsh-win32 setup
 
 - 不要把放宽 peer 范围、`allow-version` 豁免或复制旧预设目录当成修复。旧预设仍是 rc.6-era 支持，不表示所有 0.1.7 之前的版本都兼容。
 - 记录真实 DSH 版本和启动入口，再运行 `npx dsh-win32 doctor --profile NAME --json` 检查对应 profile。Doctor 的当前包检查使用发布元数据，不等于正在运行的宿主身份。
-- 迁移前停止对应会话，检查并备份配置和自定义预设。若决定移除旧 bundle，请通过**同一个已安装 DSH 入口、同一个 profile**，按照该宿主的插件移除帮助操作。不要为消除警告换成新装的 latest、删除 profile 或丢弃自定义配置。
+- 迁移前停止对应会话，检查配置和自定义预设。需要断开旧 bundle 时，按[离线禁用与卸载步骤](./uninstall.zh.md)处理，即使 DSH 本身无法启动也可执行。先运行 `npx dsh-win32@0.17.14 disable --profile NAME` 预览，再添加 `--apply` 备份并只修改 bundle 列表；手动 patch/预设引用需单独检查，不要删除 profile 或丢弃自定义配置。
 - 使用官方 stock Minimal 和 Workspace Write；再用独立命令 `npx dsh-win32 verify --profile NAME --json` 获取组件证据。核对报告中的实际安装版本和来源是否匹配目标宿主。通过不表示 profile 迁移、完整 UI 会话或另一个版本也通过。
 
 如果官方 profile 仍失败，请反馈准确的 DSH、Node、dsh-win32 版本、验收选中的版本和来源、失败检查及最短脱敏错误。不要上传完整配置、路径、终端日志或凭据。保持 Workspace Write 和包管理器政策不变。
