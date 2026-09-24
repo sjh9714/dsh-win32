@@ -715,7 +715,7 @@ function installedManifest(packageJson: string): { version: string; dependencies
 interface TerminalHarness {
   ctx: any
   agent: any
-  disposeAgent: () => void
+  disposeAgent: () => void | Promise<void>
 }
 
 /** Non-driving owner for direct tool acceptance, never an agent-loop substitute. */
@@ -740,8 +740,10 @@ export function createVerificationAgent(id: string, session: unknown, ctx: any):
   }
 }
 
-async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<TerminalHarness> {
-  const load = async (name: LiveComponent): Promise<any> => import(pathToFileURL(tree.components[name].entryPath).href)
+export async function composeOfficialHarness(
+  tree: ResolvedInstalledTree,
+  load: (name: LiveComponent) => Promise<any> = async name => import(pathToFileURL(tree.components[name].entryPath).href),
+): Promise<TerminalHarness> {
   let ctx: any
   try {
     const [cordis, agentModule, sessionModule, sessionProjectionModule, terminalModule, terminalBash, systemPromptModule, toolsModule, persistentPwsh, subprocessModule, sandboxModule, policyModule] = await Promise.all([
@@ -797,7 +799,10 @@ async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<Term
     const scope = ctx.plugin(() => {})
     const session = sessionModule.Session.create(id)
     const agent = createVerificationAgent(id, session, scope.ctx)
-    const disposeAgent = ctx.agents.register(agent)
+    // Newer DSH registers through an asynchronous Cordis effect. Await its
+    // readiness before exposing the owner to tools; older synchronous
+    // registration remains compatible with the same await.
+    const disposeAgent = await ctx.agents.register(agent)
     return { ctx, agent, disposeAgent }
   } catch {
     if (ctx !== undefined) {
@@ -808,6 +813,17 @@ async function composeOfficialHarness(tree: ResolvedInstalledTree): Promise<Term
       }
     }
     throw new CheckFailure('official_components', 'the required official components could not be resolved and composed from the installed DSH tree')
+  }
+}
+
+export async function disposeOfficialHarness(harness: TerminalHarness): Promise<void> {
+  try {
+    await withTimeout(Promise.resolve().then(() => harness.disposeAgent()), 20_000)
+  } finally {
+    // Context teardown still owns terminals/components when unregistration
+    // rejects or times out. Await both phases and never report a failed
+    // unregistration as successful teardown.
+    await withTimeout(Promise.resolve().then(() => harness.ctx.fiber.dispose()), 20_000)
   }
 }
 
@@ -985,8 +1001,7 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
     if (harness !== undefined) {
       checkpoint('runtime_teardown_starting')
       try {
-        harness.disposeAgent()
-        await withTimeout(harness.ctx.fiber.dispose(), 20_000)
+        await disposeOfficialHarness(harness)
       } catch {
         cleanupFailed = true
       }

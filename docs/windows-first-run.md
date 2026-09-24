@@ -25,6 +25,19 @@ npx dsh-win32 doctor --json
 
 If no supported repair applies, retain the failed check and its short error. Repeated installation is not a diagnosis. Keep Workspace Write and package-manager policy in place.
 
+## If DSH skips the legacy dsh-win32 bundle
+
+An error such as `skipping profile bundle "dsh-win32"` with peer range `>=0.1.0-rc.5 <0.1.0-rc.7` concerns the **legacy plugin**, not the standalone CLI. This distinction matters for [#89](https://github.com/sjh9714/dsh-win32/issues/89), reported with DSH `0.1.7-rc.1`.
+
+That host requires [`ProcessInspector.snapshot()` to return an object with `tree()`, `session()`, and `alive()`](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/subprocess/subprocess-local/src/process-inspector.ts#L34). The legacy dsh-win32 inspector returns an array. A bounded test using the published 0.17.12 inspector and synthetic process data reproduces `TypeError: inspector.snapshot(...).tree is not a function`. This is a contract test, not a Windows session test. The host also [already supplies its own Windows inspector](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/subprocess/subprocess-local/src/process-inspector.ts#L549). Cold startup and `--dump-config` do not exercise persistent-terminal readiness, cancellation, or cleanup.
+
+- Do not widen the peer range, use `allow-version` as a repair, or copy the old preset directory into a new host. Legacy presets remain rc.6-era support; this is not a claim of support for every release before 0.1.7.
+- Record the actual DSH version and launcher, then inspect the affected profile with `npx dsh-win32 doctor --profile NAME --json`. Doctor uses published metadata for the current package check; that metadata does not identify the running host.
+- Before migrating an existing profile, stop its session, review and back up its configuration and custom presets. If you choose to remove the legacy bundle, use the **same installed DSH launcher and profile**, following that host's plugin-removal help. Do not replace the launcher with a fresh latest install, delete the profile, or discard custom configuration just to clear the warning.
+- Use the official stock Minimal preset with Workspace Write, and the standalone `npx dsh-win32 verify --profile NAME --json` for component evidence. The verifier reports its selected installed version/source; confirm that these match the host you intend to test. A pass does not prove profile migration, the complete UI session, or another host version.
+
+If the stock profile still fails, report the exact DSH, Node and dsh-win32 versions, selected verification version/source, failing check and a short redacted error. Do not publish full profiles, paths, terminal logs, or credentials. Keep Workspace Write and package-manager policy unchanged.
+
 ## Verify the installed stack
 
 From dsh-win32 **0.17.12**, combine current-mode setup and one installed-stack check:

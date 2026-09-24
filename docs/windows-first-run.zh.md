@@ -39,6 +39,21 @@ npx dsh-win32 setup
 
 不需要快捷方式时使用 `npx dsh-win32 setup --no-shortcut`。当前 setup 保留官方 profile 和预设；启动入口参见 [DSH 官方说明](https://github.com/deepseek-ai/deepseek-harness#run)。
 
+<a id="compatibility-warning"></a>
+
+## 如果 DSH 跳过旧版 dsh-win32 bundle
+
+`skipping profile bundle "dsh-win32"` 和 peer 范围 `>=0.1.0-rc.5 <0.1.0-rc.7` 的不兼容警告针对的是**旧版插件**，不是独立 CLI。[#89](https://github.com/sjh9714/dsh-win32/issues/89) 在 DSH `0.1.7-rc.1` 上报告了这一情况。
+
+该宿主要求 [`ProcessInspector.snapshot()` 返回具有 `tree()`、`session()`、`alive()` 的对象](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/subprocess/subprocess-local/src/process-inspector.ts#L34)，而旧版 dsh-win32 inspector 返回数组。使用已发布的 0.17.12 inspector 和合成进程数据，有限范围的测试复现了 `TypeError: inspector.snapshot(...).tree is not a function`。这是接口契约测试，不是 Windows 会话实测。宿主也[已经提供自己的 Windows inspector](https://github.com/deepseek-ai/deepseek-harness/blob/46a7f68b0922371ce7144b668b90e377d8e799f4/packages/subprocess/subprocess-local/src/process-inspector.ts#L549)。冷启动或 `--dump-config` 成功没有覆盖持久终端的就绪判断、中断和清理。
+
+- 不要把放宽 peer 范围、`allow-version` 豁免或复制旧预设目录当成修复。旧预设仍是 rc.6-era 支持，不表示所有 0.1.7 之前的版本都兼容。
+- 记录真实 DSH 版本和启动入口，再运行 `npx dsh-win32 doctor --profile NAME --json` 检查对应 profile。Doctor 的当前包检查使用发布元数据，不等于正在运行的宿主身份。
+- 迁移前停止对应会话，检查并备份配置和自定义预设。若决定移除旧 bundle，请通过**同一个已安装 DSH 入口、同一个 profile**，按照该宿主的插件移除帮助操作。不要为消除警告换成新装的 latest、删除 profile 或丢弃自定义配置。
+- 使用官方 stock Minimal 和 Workspace Write；再用独立命令 `npx dsh-win32 verify --profile NAME --json` 获取组件证据。核对报告中的实际安装版本和来源是否匹配目标宿主。通过不表示 profile 迁移、完整 UI 会话或另一个版本也通过。
+
+如果官方 profile 仍失败，请反馈准确的 DSH、Node、dsh-win32 版本、验收选中的版本和来源、失败检查及最短脱敏错误。不要上传完整配置、路径、终端日志或凭据。保持 Workspace Write 和包管理器政策不变。
+
 ## 3. 验证真正安装的组件，而不只看命令成功
 
 从 dsh-win32 **0.17.12** 开始，可在当前模式下用一条命令完成 setup，再执行一次组件验收：

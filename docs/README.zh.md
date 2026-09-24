@@ -73,6 +73,8 @@ DSH rc.6 及更早版本没有当前官方 PowerShell stack。原来的 Git Bash
 
 package 中的 `@deepseek-ai/dsh-subprocess-local` peer 范围 `>=0.1.0-rc.5 <0.1.0-rc.7` 是刻意保留的旧版 bundle 边界，不是独立 `setup`、`doctor` 或 `verify` 命令的 host 版本范围；这些命令不会把 bundle 接入当前版 DSH。`dsh plugin add` 成功不等于兼容，缺少 host-peer 警告的问题见[上游 #6680](https://github.com/deepseek-ai/deepseek-harness/discussions/6680)。
 
+如果新宿主提示 `skipping profile bundle "dsh-win32"` 或 subprocess peer 不兼容，不要把放宽版本范围或 `allow-version` 豁免当成修复。DSH `0.1.7-rc.1` 要求的进程检查器 snapshot 契约与旧 bundle 不同；能加载或 `--dump-config` 成功不等于旧 bundle 兼容。请按[兼容性警告迁移指南](https://github.com/sjh9714/dsh-win32/blob/master/docs/windows-first-run.zh.md#compatibility-warning)处理。当前 DSH 已自带 Windows 进程检查器。
+
 如果当前 profile 已把 dsh-win32 列为插件，请用真实 profile 名运行 `npx dsh-win32 doctor --profile NAME`。Doctor 会提示旧版 bundle 和移除命令，但不会自动移除。先检查并备份受影响的 profile，再决定是否移除。
 
 ```powershell
