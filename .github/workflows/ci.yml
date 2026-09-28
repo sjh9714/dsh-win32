@@ -137,21 +137,22 @@ jobs:
             # The supported workaround still produces the flattened npm tree
             # whose installed component chain this lane is meant to validate.
             npm install --prefix $official --install-strategy=hoisted --legacy-peer-deps --foreground-scripts --no-audit --no-fund @deepseek-ai/dsh@latest
+            if ($LASTEXITCODE -ne 0) { throw 'official DSH installation failed' }
             # legacy-peer-deps deliberately omits peer-only runtime seams.
-            # Install the exact closure used by this acceptance composition at
-            # the selected DSH version, without guessing registry dist-tags.
+            # Read the installed owners' declarations: newer DSH releases may
+            # remove or rename packages (code-runtime became ptc-runtime).
+            # Repeat for newly installed peers, with a bounded failure path.
             $dshManifest = Join-Path $official 'node_modules/@deepseek-ai/dsh/package.json'
-            $dshVersion = node -e "process.stdout.write(require(process.argv[1]).version)" $dshManifest
-            if ($LASTEXITCODE -ne 0 -or [String]::IsNullOrWhiteSpace($dshVersion)) { throw 'could not read installed DSH version' }
-            $runtimePeers = @(
-              '@deepseek-ai/dsh-invariants',
-              '@deepseek-ai/dsh-scope',
-              '@deepseek-ai/dsh-code-runtime',
-              '@deepseek-ai/dsh-timeout',
-              '@deepseek-ai/dsh-sandbox',
-              '@deepseek-ai/dsh-shell'
-            ) | ForEach-Object { "$_@$dshVersion" }
-            npm install --prefix $official --save-exact --install-strategy=hoisted --legacy-peer-deps --foreground-scripts --no-audit --no-fund @runtimePeers
+            $peerRounds = 0
+            while ($true) {
+              $runtimePeers = @(node scripts/official-runtime-peers.mjs $dshManifest)
+              if ($LASTEXITCODE -ne 0) { throw 'could not inspect installed DSH runtime peers' }
+              if ($runtimePeers.Count -eq 0) { break }
+              if ($peerRounds -ge 5) { throw 'official DSH runtime peers did not converge' }
+              npm install --prefix $official --save-exact --install-strategy=hoisted --legacy-peer-deps --foreground-scripts --no-audit --no-fund @runtimePeers
+              if ($LASTEXITCODE -ne 0) { throw 'official DSH runtime peer installation failed' }
+              $peerRounds++
+            }
           } else {
             New-Item -ItemType Directory -Force -Path $official | Out-Null
             '{"name":"dsh-live-acceptance","version":"0.0.0","private":true}' | Set-Content -Encoding utf8 (Join-Path $official 'package.json')
