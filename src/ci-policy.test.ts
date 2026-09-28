@@ -4,6 +4,15 @@ import { describe, expect, it } from 'vitest'
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
 
 describe('official Windows acceptance policy', () => {
+  it('discovers omitted npm peers from the installed official tree instead of guessing release names', () => {
+    expect(workflow).toContain('node scripts/official-runtime-peers.mjs $dshManifest')
+    expect(workflow).not.toContain("'@deepseek-ai/dsh-code-runtime'")
+    expect(workflow).not.toContain('ForEach-Object { "$_@$dshVersion" }')
+    expect(workflow).toContain('could not inspect installed DSH runtime peers')
+    expect(workflow).toContain('official DSH runtime peer installation failed')
+    expect(workflow).toContain('official DSH runtime peers did not converge')
+  })
+
   it('keeps the pnpm graph isolated and preserves the release-age gate', () => {
     for (const setting of [
       'nodeLinker: isolated',
