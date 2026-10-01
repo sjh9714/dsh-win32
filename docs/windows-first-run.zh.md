@@ -76,19 +76,21 @@ npx dsh-win32 verify --json
 
 通过之后仍有明确边界：它没有启动完整 stock Minimal host，没有验证插件安装、hook 强制执行或模型工作流。使用时选择官方 **Minimal** 并保持 **Workspace Write**，不要把组件结果宣传成完整 TUI 验证。
 
+**2026-10-01** 的 [Windows CI](https://github.com/sjh9714/dsh-win32/actions/runs/36877999753) 在 npm 与严格 pnpm、Node 22.19 与 Node 24 的四组组合中均通过 `verify` 和 `setup --verify`。四组实际安装的 DSH 均为 `0.2.0-rc.2`，pnpm 保留 1,440 分钟发布等待政策。这只验证已安装的 CLI 组件链，不是 Desktop 打包路径或完整模型会话验收，也不扩大旧版 bundle 的兼容范围。
+
 ## 4. 只有 DSH Desktop 失败时
 
-CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；issue 关闭或构建通过也不是完整会话证据。以下发布状态核对于 **2026-09-21**，最新 [Desktop 2.0.13](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.13) 内置 DSH `0.1.5-rc.2`：
+CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；issue 关闭或构建通过也不是完整会话证据。以下发布状态核对于 **2026-10-01**，[Desktop 2.0.17](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.17) 内置 DSH `0.2.0-rc.2`。另行发布的 `2.0.17-next` 仍是实验通道，不能因为 GitHub 将它标为最新 release 就当作稳定通道。发布说明不等于独立 Windows 验收。
 
 | 错误特征 | 上游证据与边界 |
 | --- | --- |
 | 无控制台宿主的受限令牌 shell 启动报 `0xC0000142` / `STATUS_DLL_INIT_FAILED` | [PR #990](https://github.com/anywhere-labs/dsh-desktop/pull/990) 已随 [Desktop 2.0.11](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.11) 发布，2.0.13 也包含它。[PR #266](https://github.com/anywhere-labs/dsh-desktop/pull/266) 未合并而关闭，不代表 #990 尚未发布。普通 PTY 报错本身不能证明是这个原因。 |
-| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) 和 [#931](https://github.com/anywhere-labs/dsh-desktop/pull/931) 修复私有 Electron Job runner 路径，自 [2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) 起发布。维护者[按这个原始特征关闭了 #933](https://github.com/anywhere-labs/dsh-desktop/issues/933#issuecomment-5748645422)，不是宣布后续所有终端问题已解决。 |
+| `Windows Job runner exited with exit code 0 before proving its managed range empty` | [PR #927](https://github.com/anywhere-labs/dsh-desktop/pull/927) 和 [#931](https://github.com/anywhere-labs/dsh-desktop/pull/931) 修复私有 Electron Job runner 路径，自 [2.0.9](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.9) 起发布。维护者[于 9 月 29 日关闭了 #924](https://github.com/anywhere-labs/dsh-desktop/issues/924#issuecomment-5885440813)，覆盖 #933 也报告的原始错误。同一回复纠正了“2.0.11 已修复持久 PTY 启动”的旧说法；该独立问题仍在 #1051 跟踪。 |
 | `PTY shell exited during startup`，ConPTY runner 无输出并以 `127` 退出 | [#1051](https://github.com/anywhere-labs/dsh-desktop/issues/1051) 仍开放：Windows 11 用户报告 2.0.13 配合 Store/MSIX PowerShell 的持久终端启动失败，未做全新 profile 对照。这不是我们的独立复现，且与 #990 覆盖的一次性执行器不同。 |
 | 内置技能发现或 ASAR 目录元数据访问时出现 `Cannot mix BigInt and other types` | [PR #973](https://github.com/anywhere-labs/dsh-desktop/pull/973) 取消 ASAR 打包并增加打包后文件系统检查，已包含在 [Desktop 2.0.10](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.10) 中。其他位置的 BigInt 错误不一定同源。 |
 | Cargo/Schannel 在 Workspace Write 下访问 crates.io 报 `SEC_E_NO_CREDENTIALS`（`0x8009030e`） | 我们的[独立 TLS 复现](https://github.com/deepseek-ai/deepseek-harness/discussions/986#discussioncomment-18494537) 尚未解决。shell 能启动不代表 HTTPS 可用；不要关闭证书验证或放宽权限来凑出通过结果。 |
 
-我们的 [2026-09-18 payload 检查](https://github.com/anywhere-labs/dsh-desktop/issues/924#issuecomment-5725248498) 核对官方 **2.0.11 x64 Setup.exe 的校验和后，只解包，没有安装**。Windows Server 2022/2025 分别搭配 Node 22.19 和 payload 中的 Electron 43.3.0/Node 24.18.1，共四组通过前台 PowerShell 启动、工作区内写入、外部写入拒绝、中断及直接子进程退出、context 清理。Desktop 路径使用发布的 `DesktopWindowsPwshSandbox`。这没有验收正常 Desktop UI、持久 PTY、glob/grep、hook、Blue、stock Minimal 或模型会话，也不独立证明 2.0.13 正常。
+我们的 [2026-09-18 payload 检查](https://github.com/anywhere-labs/dsh-desktop/issues/924#issuecomment-5725248498) 核对官方 **2.0.11 x64 Setup.exe 的校验和后，只解包，没有安装**。Windows Server 2022/2025 分别搭配 Node 22.19 和 payload 中的 Electron 43.3.0/Node 24.18.1，共四组通过前台 PowerShell 启动、工作区内写入、外部写入拒绝、中断及直接子进程退出、context 清理。Desktop 路径使用发布的 `DesktopWindowsPwshSandbox`。这没有验收正常 Desktop UI、持久 PTY、glob/grep、hook、Blue、stock Minimal 或模型会话，也不独立证明后续 Desktop 版本或 DSH `0.2.0-rc.2` 正常。
 
 同次检查中，Cargo 1.98.1 获取 `itoa 1.0.15` 的四组非限制对照都成功，四组 Workspace Write 都在 TLS 处失败。因此[诊断 run 为红色](https://github.com/sjh9714/dsh-win32/actions/runs/35307547925)，它没有调用 dsh-win32 runtime；独立的 [dsh-win32 0.17.11 发布 CI 为绿色](https://github.com/sjh9714/dsh-win32/actions/runs/35307413235)。[固定版本的诊断源码](https://github.com/sjh9714/dsh-win32/blob/501f6f8516713f47fe8ef7690b7527ee90b34dec/scripts/upstream-windows-probe.mjs) 没有包含在 npm 包中。
 
