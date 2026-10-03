@@ -20,6 +20,14 @@ npx dsh-win32 doctor --json
 
 `doctor` 会检查发布的 DSH Windows package contract，并定位已知本机问题。只看到官方 package metadata 正常，还不能判断某个缓存中的 launcher 真能启动。
 
+### 已安装 PowerShell，但 doctor 找不到
+
+Doctor 先检查 `%ProgramFiles%\PowerShell\7\pwsh.exe`，再读取其自身进程环境中 `where.exe pwsh` 的第一条结果。它不查询 MSI 注册表，也不激活或验证应用执行别名。此项 `pass` 只表示找到了路径，不代表 Desktop 能启动受限 shell。
+
+在运行 doctor 的同一终端执行 `where.exe pwsh`，并与 Desktop 启动入口使用的路径比较。不要公开完整 PATH 或私人目录名。安装前置软件后，打开新终端并重启 Desktop，让它们继承更新后的环境。
+
+[微软安装指南](https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows?view=powershell-7.6)说明 PowerShell 7.6 起 WinGet 默认使用 MSIX。Doctor 不会拒绝 `where.exe` 返回的别名路径。如果确实需要仍可用的 7.6 MSI 发行包，官方 WinGet 选项是 `--installer-type wix`，不是 `msi`；操作前核对提供的版本和安装包。该指南也说明 7.7 起不再提供 MSI，因此不能把 MSI 当成长期必需条件。更换安装包类型不是已确认的 Desktop 沙箱启动修复。
+
 ## 2. 只处理已确认的问题
 
 如果诊断指出 koffi 的已知坏版本或实际加载失败，先确认受影响的安装与变更范围，再运行：
@@ -79,6 +87,10 @@ npx dsh-win32 verify --json
 **2026-10-01** 的 [Windows CI](https://github.com/sjh9714/dsh-win32/actions/runs/36877999753) 在 npm 与严格 pnpm、Node 22.19 与 Node 24 的四组组合中均通过 `verify` 和 `setup --verify`。四组实际安装的 DSH 均为 `0.2.0-rc.2`，pnpm 保留 1,440 分钟发布等待政策。这只验证已安装的 CLI 组件链，不是 Desktop 打包路径或完整模型会话验收，也不扩大旧版 bundle 的兼容范围。
 
 ## 4. 只有 DSH Desktop 失败时
+
+**2026-10-04 新报告：**[#97](https://github.com/sjh9714/dsh-win32/issues/97) 描述 Windows 11 build 26100 上标为 `0.2.0-rc.2` 的 `DeepSeek Harness.exe`，Workspace Write 命令以 `0xC0000142` 失败。先确认下载来源和应用 build，不能仅凭内置 DSH 版本将它认定为 anywhere-labs Desktop `2.x`。PowerShell 路径发现与受限子进程启动是两个问题。
+
+[上游 #8322](https://github.com/deepseek-ai/deepseek-harness/discussions/8322) 和 [#8775](https://github.com/deepseek-ai/deepseek-harness/discussions/8775) 包含贡献者的测量和原因假说。其中一次[对照](https://github.com/deepseek-ai/deepseek-harness/discussions/8322#discussioncomment-18734059)在保持控制台条件不变、只改变令牌默认 DACL 后观察到子进程退出码改变，但所有 PTY 组仍为零字节输出。这是第三方报告，不是我们的独立复现，也不是已发布的完整会话修复。不要认定切换真实 Node 就能解决所有情况，不要修改 ASAR/令牌权限或关闭杀毒软件来验证假说；保留最短原始错误与准确宿主身份供上游排查。
 
 CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；issue 关闭或构建通过也不是完整会话证据。以下发布状态核对于 **2026-10-01**，[Desktop 2.0.17](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.17) 内置 DSH `0.2.0-rc.2`。另行发布的 `2.0.17-next` 仍是实验通道，不能因为 GitHub 将它标为最新 release 就当作稳定通道。发布说明不等于独立 Windows 验收。
 

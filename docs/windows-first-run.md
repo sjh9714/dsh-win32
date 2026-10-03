@@ -25,6 +25,14 @@ npx dsh-win32 doctor --json
 
 If no supported repair applies, retain the failed check and its short error. Repeated installation is not a diagnosis. Keep Workspace Write and package-manager policy in place.
 
+### PowerShell is installed, but doctor cannot find it
+
+Doctor first checks `%ProgramFiles%\PowerShell\7\pwsh.exe`, then the first result from `where.exe pwsh` in its own process environment. It does not use the MSI registry or activate/test an application execution alias. A `pass` here means a path was found, not that Desktop can launch a confined shell.
+
+Run `where.exe pwsh` in the same terminal as doctor. Compare it with the path used by your Desktop launcher; do not publish your full PATH or private directory names. After installing a prerequisite, open a new terminal and restart Desktop so they can inherit the updated environment.
+
+[Microsoft's installation guide](https://learn.microsoft.com/en-us/powershell/scripting/install/install-powershell-on-windows?view=powershell-7.6) says WinGet defaults to MSIX from PowerShell 7.6. An alias returned by `where.exe` is not rejected by doctor. If you specifically need the available 7.6 MSI distribution, Microsoft's WinGet selector is `--installer-type wix`, not `msi`; check the version and installer offered before proceeding. The guide says MSI is unavailable from 7.7, so this is not a permanent installation requirement. Changing installer type is not an established repair for Desktop sandbox startup failures.
+
 ## If DSH skips the legacy dsh-win32 bundle
 
 An error such as `skipping profile bundle "dsh-win32"` with peer range `>=0.1.0-rc.5 <0.1.0-rc.7` concerns the **legacy plugin**, not the standalone CLI. This distinction matters for [#89](https://github.com/sjh9714/dsh-win32/issues/89), reported with DSH `0.1.7-rc.1`.
@@ -63,6 +71,10 @@ When a coding agent's outer sandbox blocks the verifier, request access for this
 ## If only DSH Desktop fails
 
 A successful CLI component check does not validate Electron's packaged process-launch chain. Keep the exact Desktop version, bundled DSH version, and short error separate from the CLI result.
+
+**New report, 2026-10-04:** [#97](https://github.com/sjh9714/dsh-win32/issues/97) describes `DeepSeek Harness.exe` labelled `0.2.0-rc.2` on Windows 11 build 26100, with Workspace Write commands failing with `0xC0000142`. Confirm its download source and application build; do not identify it as anywhere-labs Desktop `2.x` from the bundled DSH version alone. PowerShell discovery and restricted-child startup are separate questions.
+
+[Upstream #8322](https://github.com/deepseek-ai/deepseek-harness/discussions/8322) and [#8775](https://github.com/deepseek-ai/deepseek-harness/discussions/8775) contain contributor measurements and proposed causes. One [comparison](https://github.com/deepseek-ai/deepseek-harness/discussions/8322#discussioncomment-18734059) reports different child exit codes after changing only the token default DACL while retaining the console conditions, but every PTY arm still produced zero bytes. These are third-party reports, not our independent reproduction or a released, complete-session fix. Do not assume a real-Node switch alone fixes every case, patch ASAR/token permissions, or disable antivirus to test a theory. Keep the original short error and exact host identity for upstream triage.
 
 Match the error to its own upstream path; issue closure and a green build are not complete-session evidence. Release status checked on **2026-10-01**. [Desktop 2.0.17](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.17) bundles DSH `0.2.0-rc.2`. The separately released `2.0.17-next` is still an experimental channel, even though GitHub marks it as the latest release. These release notes are not independent Windows acceptance evidence.
 
