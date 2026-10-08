@@ -15,6 +15,21 @@ updates:
       # Type-check against the oldest supported Node major, not newer APIs.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # These 0.1 fixtures share peers with the rc.6 subprocess graph. Moving
+      # only this subset to 0.2 causes ERESOLVE (see #100). Review cross-minor
+      # upgrades together with the legacy support boundary, not in this group.
+      - dependency-name: '@deepseek-ai/dsh-agent'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      - dependency-name: '@deepseek-ai/dsh-fs'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      - dependency-name: '@deepseek-ai/dsh-fs-local'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      - dependency-name: '@deepseek-ai/dsh-sandbox-local'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      - dependency-name: '@deepseek-ai/dsh-session'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      - dependency-name: '@deepseek-ai/dsh-terminal'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
       # Keep the legacy filesystem/sandbox fixtures alongside subprocess rc.6.
       # Current official components have their own live acceptance lane.
       - dependency-name: '@deepseek-ai/dsh-fs-sandbox'
