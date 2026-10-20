@@ -189,6 +189,38 @@ describe('verify isolation orchestration with fakes', () => {
     }
   })
 
+  it('resolves the new working-directory chain only from its declared base owner', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-win32-working-directory-'))
+    try {
+      const selected = writeInstalledTree(root)
+      const names = [...baseComponents, '@deepseek-ai/dsh-working-directory', '@deepseek-ai/dsh-fs-sandbox', '@deepseek-ai/dsh-fs-local']
+      writePackage(root, '@deepseek-ai/dsh-base', {
+        dependencies: Object.fromEntries(names.map(name => [name, '1.0.0'])),
+      })
+      for (const name of names.slice(baseComponents.length)) writePackage(root, name)
+      const tree = resolveInstalledTree(selected)
+      for (const name of names.slice(baseComponents.length)) {
+        expect(tree.components[name as keyof typeof tree.components]?.owner).toBe('@deepseek-ai/dsh-base')
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('does not silently omit a declared working-directory service when its filesystem dependency is missing', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-win32-working-directory-missing-'))
+    try {
+      const selected = writeInstalledTree(root)
+      writePackage(root, '@deepseek-ai/dsh-base', {
+        dependencies: Object.fromEntries([...baseComponents, '@deepseek-ai/dsh-working-directory'].map(name => [name, '1.0.0'])),
+      })
+      writePackage(root, '@deepseek-ai/dsh-working-directory')
+      expect(() => resolveInstalledTree(selected)).toThrow()
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('rejects a component borrowed from the dsh-win32 development tree', () => {
     // Nest beneath the repository so ordinary Node fallback can see the
     // repository's own @deepseek-ai/cordis. The selected fixture deliberately
