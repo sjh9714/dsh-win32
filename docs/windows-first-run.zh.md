@@ -92,7 +92,9 @@ npx dsh-win32 verify --json
 
 [上游 #8322](https://github.com/deepseek-ai/deepseek-harness/discussions/8322) 和 [#8775](https://github.com/deepseek-ai/deepseek-harness/discussions/8775) 包含贡献者的测量和原因假说。其中一次[对照](https://github.com/deepseek-ai/deepseek-harness/discussions/8322#discussioncomment-18734059)在保持控制台条件不变、只改变令牌默认 DACL 后观察到子进程退出码改变，但所有 PTY 组仍为零字节输出。这是第三方报告，不是我们的独立复现，也不是已发布的完整会话修复。不要认定切换真实 Node 就能解决所有情况，不要修改 ASAR/令牌权限或关闭杀毒软件来验证假说；保留最短原始错误与准确宿主身份供上游排查。
 
-CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；issue 关闭或构建通过也不是完整会话证据。以下发布状态核对于 **2026-10-01**，[Desktop 2.0.17](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.17) 内置 DSH `0.2.0-rc.2`。另行发布的 `2.0.17-next` 仍是实验通道，不能因为 GitHub 将它标为最新 release 就当作稳定通道。发布说明不等于独立 Windows 验收。
+CLI 组件验收通过不等于 Electron 打包后的进程链通过。分别记录 Desktop 版本、内置 DSH 版本和最短错误；issue 关闭或构建通过也不是完整会话证据。发布状态核对于 **2026-10-20**，UTC 10 月 17 日发布的[稳定版 Desktop 2.0.18](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.18) 列出的上游版本为 DSH `0.2.1-rc.2`。公告说明从下个版本开始稳定版不再更新，由 DSH NEXT 取代。Desktop 仍是社区项目，不是 DeepSeek 官方产品。发布说明提到减少 Windows 控制台弹窗和抢焦点，以及旧版目录清理修复，并未证明 #1051 或 Cargo TLS 已解决。我们尚未独立验收此版本，也未验证它与 dsh-win32 的兼容性。
+
+单独的实验版 [2.0.18-next](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.18-next) 重新使用 `app.asar` 打包并增加完整性检查。下表中 2.0.10 取消 ASAR 的历史不能推广到所有后续版本。不要修改打包文件，也不要仅凭打包形式推断回归或修复。Next 默认与稳定版共用 `~/.dsh`；不同 profile 名称不隔离会话、账号和凭据。其文档中的 `DSH_DESKTOP_NEXT_HOME` 也不隔离 AA 共享登录和设备绑定状态。验收应使用独立的临时 Windows 账号或 VM，不使用个人安装。这些信息来自发布说明，不是本次独立 Windows 实测。
 
 | 错误特征 | 上游证据与边界 |
 | --- | --- |
@@ -131,6 +133,8 @@ npx dsh-movein
 确认目标、冲突与不支持项后才添加 `--apply`。这不是 Windows 修复的必需步骤，也不会自动搬入会话历史。先看 [Movein 的安全试用例子](https://github.com/sjh9714/dsh-movein/blob/main/docs/first-migration.zh.md)。
 
 ## 反馈哪类信息有用？
+
+隔离环境准备、组件与真实 UI 分项验收、工作区外写入对照及清理步骤见 [Windows 验收与录屏操作表](./windows-acceptance.md)。这是待执行流程，不是已完成的验收证据。
 
 在 [issue](https://github.com/sjh9714/dsh-win32/issues) 中说明 Node、DSH、dsh-win32 版本，以及失败的检查名称。只提供已脱敏的最小复现，不上传整个配置、终端日志、路径、凭据或工作区内容。
 
