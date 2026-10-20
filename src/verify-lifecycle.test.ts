@@ -5,35 +5,63 @@ import {
   type ResolvedInstalledTree,
 } from './verify.ts'
 
-function fixture(register: () => unknown = () => () => {}) {
+function fixture(register: () => unknown = () => () => {}, workingDirectory = false) {
   const disposeContext = vi.fn(async () => {})
   const registrationStarted = Promise.withResolvers<void>()
   const registerAgent = vi.fn(() => {
     registrationStarted.resolve()
     return register()
   })
+  const mounted = new Map<string, unknown>()
+  const fsPlugin = { name: 'fixture-fs-sandbox' }
+  const cwdPlugin = { name: 'fixture-working-directory' }
   class Context {
     fiber = { dispose: disposeContext }
     agents = { register: registerAgent }
-    plugin = () => ({ ctx: this })
-    get = () => ({})
+    plugin = (plugin: unknown, config?: unknown) => {
+      if (plugin === fsPlugin) mounted.set('fs', config)
+      if (plugin === cwdPlugin) {
+        if (!mounted.has('fs')) throw new Error('filesystem must precede working directory')
+        mounted.set('workingDirectory', config)
+      }
+      return { ctx: this }
+    }
+    get = (name: string) => name === 'workingDirectory' ? mounted.get(name) : {}
   }
   const load = async (name: string) => {
     if (name === '@deepseek-ai/cordis') return { Context }
     if (name === '@deepseek-ai/dsh-session') {
       return { SessionId: (id: string) => id, Session: { create: (id: string) => ({ id }) } }
     }
+    if (name === '@deepseek-ai/dsh-fs-sandbox') return { default: fsPlugin }
+    if (name === '@deepseek-ai/dsh-working-directory') return { default: cwdPlugin }
     return { default: {}, TerminalSessionService: {} }
   }
   return {
     disposeContext,
     registerAgent,
     registrationStarted: registrationStarted.promise,
-    compose: () => composeOfficialHarness({} as ResolvedInstalledTree, load),
+    mounted,
+    compose: () => composeOfficialHarness({
+      components: workingDirectory ? { '@deepseek-ai/dsh-working-directory': {} } : {},
+    } as ResolvedInstalledTree, load),
   }
 }
 
 describe('official verifier harness lifecycle', () => {
+  it('mounts the declared working-directory service over the sandbox filesystem at the isolated workspace', async () => {
+    const installed = fixture(undefined, true)
+    vi.stubEnv('DSH_WIN32_VERIFY_WORKSPACE', '/isolated/workspace')
+    try {
+      const harness = await installed.compose()
+      expect(installed.mounted.get('fs')).toMatchObject({ cwd: '/isolated/workspace' })
+      expect(installed.mounted.get('workingDirectory')).toMatchObject({ defaultDirectory: '/isolated/workspace' })
+      await disposeOfficialHarness(harness)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('retains compatibility with synchronous agent registration and disposal', async () => {
     const disposeAgent = vi.fn()
     const installed = fixture(() => disposeAgent)
