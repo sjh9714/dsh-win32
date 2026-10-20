@@ -113,7 +113,14 @@ const BASE_COMPONENTS = [
   '@deepseek-ai/dsh-sandbox-local',
   '@deepseek-ai/dsh-sandbox-policy',
 ] as const
-type LiveComponent = typeof DSH_DIRECT_COMPONENTS[number] | typeof BASE_COMPONENTS[number]
+const WORKING_DIRECTORY_COMPONENTS = [
+  '@deepseek-ai/dsh-working-directory',
+  '@deepseek-ai/dsh-fs-sandbox',
+  '@deepseek-ai/dsh-fs-local',
+] as const
+type RequiredLiveComponent = typeof DSH_DIRECT_COMPONENTS[number] | typeof BASE_COMPONENTS[number]
+type WorkingDirectoryComponent = typeof WORKING_DIRECTORY_COMPONENTS[number]
+type LiveComponent = RequiredLiveComponent | WorkingDirectoryComponent
 
 function unsupported(reason: string): VerifyReport {
   return { schema: 'dsh-win32/verify/v1', status: 'unsupported', ok: false, boundary: BOUNDARY, checks: [], reason }
@@ -252,7 +259,8 @@ export interface ResolvedInstalledComponent {
 export interface ResolvedInstalledTree {
   selectedManifestPath: string
   selectedVersion: string
-  components: Record<LiveComponent, ResolvedInstalledComponent>
+  components: Record<RequiredLiveComponent, ResolvedInstalledComponent>
+    & Partial<Record<WorkingDirectoryComponent, ResolvedInstalledComponent>>
 }
 
 function canonicalBoundaryFor(manifestPath: string): string {
@@ -331,6 +339,9 @@ export function resolveInstalledTree(selectedPackageJson: string): ResolvedInsta
   const entries = [
     ...DSH_DIRECT_COMPONENTS.map(name => resolveOwnedComponent(dsh, '@deepseek-ai/dsh', name, boundary, false)),
     ...BASE_COMPONENTS.map(name => resolveOwnedComponent(base, '@deepseek-ai/dsh-base', name, boundary, true)),
+    ...(declaredBy(base, '@deepseek-ai/dsh-working-directory', false)
+      ? WORKING_DIRECTORY_COMPONENTS.map(name => resolveOwnedComponent(base, '@deepseek-ai/dsh-base', name, boundary, false))
+      : []),
   ]
   const components = Object.fromEntries(entries.map(component => [component.name, component])) as ResolvedInstalledTree['components']
   // Peer imports inside each loaded package must converge on the exact
@@ -343,7 +354,7 @@ export function resolveInstalledTree(selectedPackageJson: string): ResolvedInsta
     for (const peerName of Object.keys(componentOwner.manifest.peerDependencies as Record<string, unknown>)) {
       if (!Object.prototype.hasOwnProperty.call(components, peerName)) continue
       const actual = realpathSync(componentOwner.require.resolve(`${peerName}/package.json`))
-      const expected = components[peerName as LiveComponent].manifestPath
+      const expected = components[peerName as LiveComponent]!.manifestPath
       if (actual !== expected) throw new Error(`${component.name} resolves a different ${peerName} peer identity`)
     }
   }
@@ -742,7 +753,11 @@ export function createVerificationAgent(id: string, session: unknown, ctx: any):
 
 export async function composeOfficialHarness(
   tree: ResolvedInstalledTree,
-  load: (name: LiveComponent) => Promise<any> = async name => import(pathToFileURL(tree.components[name].entryPath).href),
+  load: (name: LiveComponent) => Promise<any> = async name => {
+    const component = tree.components[name]
+    if (component === undefined) throw new Error('component is not declared by the installed host')
+    return import(pathToFileURL(component.entryPath).href)
+  },
 ): Promise<TerminalHarness> {
   let ctx: any
   try {
@@ -772,6 +787,20 @@ export async function composeOfficialHarness(
     await ctx.plugin(systemPromptModule.default, { persona: '' })
     if (ctx.get('systemPrompt') === undefined || ctx.get('tools') === undefined) {
       throw new Error('stock tools/systemPrompt services did not activate')
+    }
+    // Newer stock hosts require this service before persistent pwsh can mount.
+    // Resolve it only through the selected base, never from our legacy peers.
+    if (tree.components['@deepseek-ai/dsh-working-directory'] !== undefined) {
+      const [filesystem, workingDirectory] = await Promise.all([
+        load('@deepseek-ai/dsh-fs-sandbox'),
+        load('@deepseek-ai/dsh-working-directory'),
+      ])
+      const workspace = requireEnvironment('DSH_WIN32_VERIFY_WORKSPACE')
+      await ctx.plugin(filesystem.default, { cwd: workspace })
+      await ctx.plugin(workingDirectory.default, { defaultDirectory: workspace })
+      if (ctx.get('fs') === undefined || ctx.get('workingDirectory') === undefined) {
+        throw new Error('stock filesystem/workingDirectory services did not activate')
+      }
     }
     await ctx.plugin(terminalModule.TerminalSessionService)
     await ctx.plugin(terminalBash, {
