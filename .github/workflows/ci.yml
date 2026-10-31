@@ -185,6 +185,16 @@ jobs:
           $official = Join-Path $env:RUNNER_TEMP "dsh-official"
           $env:DSH_WIN32_VERIFY_DSH = Join-Path $official "node_modules/@deepseek-ai/dsh/package.json"
           node bin/cli.mjs verify
+      # pnpm-strict only: importing app-boot needs Cordis peers that the npm
+      # lane's --legacy-peer-deps tree omits.
+      - name: preflight judgments match the installed host
+        if: matrix.installer == 'pnpm-strict'
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
+          $official = Join-Path $env:RUNNER_TEMP "dsh-official"
+          node scripts/preflight-contract.mjs (Join-Path $official "node_modules/@deepseek-ai/dsh/package.json")
+          if ($LASTEXITCODE -ne 0) { throw 'preflight judgments differ from the installed host' }
       - name: opt-in setup verification on the same installed stack
         timeout-minutes: 6
         shell: pwsh

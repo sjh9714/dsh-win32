@@ -186,6 +186,43 @@ describe('dsh-doctor/v1 envelope', () => {
   }, SPAWN_TIMEOUT)
 })
 
+describe('preflight CLI', () => {
+  function runPreflight(args: string[], home: string): { report: any, exitCode: number } {
+    const options = { encoding: 'utf8' as const, env: { ...process.env, DSH_HOME: home, DSH_WINDOWS_DSH_META: JSON.stringify({ version: '0.2.1-rc.5' }), DSH_WIN32_VERIFY_DSH: join(home, 'none') } }
+    try {
+      return { report: JSON.parse(execFileSync(process.execPath, [CLI, 'preflight', '--json', ...args], options)), exitCode: 0 }
+    } catch (error: any) {
+      return { report: JSON.parse(error.stdout), exitCode: error.status }
+    }
+  }
+
+  it('keeps the JSON envelope and exit code in step', () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-win32-preflight-cli-'))
+    mkdirSync(join(home, 'profiles', 'web'), { recursive: true })
+    writeFileSync(join(home, 'profiles', 'web', 'package.json'), '{}')
+    const { report, exitCode } = runPreflight([], home)
+    expect(report.schema).toBe('dsh-preflight/v1')
+    expect(report.target).toEqual({ requested: 'latest', resolved: '0.2.1-rc.5' })
+    expect(report.summary.fail).toBe(0)
+    expect(exitCode).toBe(report.exitCode)
+    expect(exitCode).toBeLessThan(2)
+    rmSync(home, { recursive: true, force: true })
+  }, SPAWN_TIMEOUT)
+
+  it('exits 2 when the profile cannot be judged', () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-win32-preflight-cli-'))
+    const { report, exitCode } = runPreflight(['--profile', 'absent'], home)
+    expect(exitCode).toBe(2)
+    expect(report.checks.find((check: any) => check.name === 'profile').status).toBe('fail')
+    rmSync(home, { recursive: true, force: true })
+  }, SPAWN_TIMEOUT)
+
+  it('exits 2 on an unusable command line', () => {
+    expect(() => execFileSync(process.execPath, [CLI, 'preflight', '--target'], { encoding: 'utf8', stdio: 'pipe' }))
+      .toThrow(expect.objectContaining({ status: 2 }))
+  }, SPAWN_TIMEOUT)
+})
+
 describe('koffi runtime loading', () => {
   function homeWithKoffi(source: string) {
     const home = mkdtempSync(join(tmpdir(), 'dsh-doctor-koffi-'))
