@@ -14,7 +14,7 @@ registerHooks({
       format: 'module', shortCircuit: true,
       source: `
         import { appendFileSync } from 'node:fs';
-        export { supportsDshNode } from ${JSON.stringify(`${verifyUrl}?real`)};
+        export { findInstalledDsh, supportsDshNode } from ${JSON.stringify(`${verifyUrl}?real`)};
         export async function verifyInstalledStack(options) {
           appendFileSync(process.env.DSH_TEST_CALLS, JSON.stringify({ type: 'verify', options }) + '\\n');
           return JSON.parse(process.env.DSH_TEST_REPORT);

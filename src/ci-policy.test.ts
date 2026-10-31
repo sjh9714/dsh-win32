@@ -13,6 +13,11 @@ describe('official Windows acceptance policy', () => {
     expect(workflow).toContain('official DSH runtime peers did not converge')
   })
 
+  it('compares preflight judgments with the installed host on the strict lane', () => {
+    expect(workflow).toContain('node scripts/preflight-contract.mjs')
+    expect(workflow).toContain('preflight judgments differ from the installed host')
+  })
+
   it('keeps the pnpm graph isolated and preserves the release-age gate', () => {
     for (const setting of [
       'nodeLinker: isolated',

@@ -14,9 +14,10 @@ import process from 'node:process'
 import { offerSetupStar } from './setup-consent.mjs'
 // Shared with the runtime so the two never drift; lib/ always ships with bin/.
 import { findGitBash, installPreset, busyboxPath } from '../lib/preset-install.js'
-import { supportsDshNode, verifyInstalledStack } from '../lib/verify.js'
+import { findInstalledDsh, supportsDshNode, verifyInstalledStack } from '../lib/verify.js'
 import { inspectLegacyPersonas } from '../lib/persona-diagnostic.js'
 import { disableProfile } from '../lib/profile-disable.js'
+import { runPreflight } from '../lib/preflight.js'
 
 const WIN = process.platform === 'win32'
 const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
@@ -379,6 +380,73 @@ function doctor({ json = false, remediation = false, legacy = false, profile = '
   return { gitBash, official, exitCode }
 }
 
+/** `spec` and `fields` are validated constants or package names; shell:true is only for the Windows .cmd shim. */
+function npmView(spec, fields) {
+  if (process.env.DSH_WINDOWS_DSH_META !== undefined && spec.startsWith('@deepseek-ai/dsh@')) {
+    return dshReleaseMeta()
+  }
+  try {
+    const output = execFileSync(WIN ? 'npm.cmd' : 'npm', ['view', spec, ...fields, '--json'], {
+      encoding: 'utf8',
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      shell: WIN,
+      timeout: 15_000,
+    })
+    return JSON.parse(output)
+  } catch {
+    return undefined
+  }
+}
+
+function preflightOptions(args) {
+  const options = {}
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (arg === '--json' && options.json === undefined) options.json = true
+    else if ((arg === '--target' || arg === '--profile') && args[index + 1] && !args[index + 1].startsWith('--')) {
+      const key = arg.slice(2)
+      if (options[key] !== undefined) throw new Error(`duplicate ${arg}`)
+      options[key] = args[++index]
+    } else throw new Error('usage: dsh-win32 preflight [--target <version|dist-tag>] [--profile <name>] [--json]')
+  }
+  return options
+}
+
+/** An unusable command line is an unfinished judgment, so it exits 2 like any other. */
+function preflight(args) {
+  let options
+  try { options = preflightOptions(args) } catch (error) {
+    console.error(`preflight: ${error.message}`)
+    process.exitCode = 2
+    return
+  }
+  const { json = false, target, profile = 'web' } = options
+  const report = runPreflight({ home: DSH_HOME, target, profile }, {
+    view: npmView,
+    installedVersion: name => findInstalledDsh(name)?.version,
+    nodeVersion: process.versions.node,
+    ...(WIN ? { windows: {
+      pwsh: findPwsh7(),
+      pathPwsh: tryExec('where.exe', ['pwsh'])?.split(/\r?\n/)[0]?.trim() || undefined,
+    } } : {}),
+  })
+  process.exitCode = report.exitCode
+  if (json) {
+    console.log(JSON.stringify(report, null, 2))
+    return
+  }
+  const destination = report.target.resolved ?? report.target.requested
+  console.log(`dsh-win32 preflight (${report.installed ?? 'unknown installed DSH'} -> ${destination}, profile: ${profile})`)
+  for (const { name, status, detail, fix } of report.checks) {
+    RENDER[status](fix === undefined ? `${name}: ${detail}` : `${name}: ${detail}. Fix: ${fix}`)
+  }
+  info(`upstream upgrade guides: ${report.guide}`)
+  if (report.exitCode === 0) ok('nothing blocks this upgrade')
+  else if (report.exitCode === 1) warn('review the warnings before upgrading')
+  else bad('do not upgrade yet')
+}
+
 async function verify({ json = false, profile = 'web' } = {}) {
   const report = await verifyInstalledStack({ profile })
   if (json) {
@@ -730,6 +798,7 @@ async function main([command, ...rest]) {
     else await setupCurrent(rest)
   }
   else if (command === 'disable') disable(rest)
+  else if (command === 'preflight') preflight(rest)
   else if (command === 'fix') fix()
   else if (command === 'verify') {
     const profile = profileFrom(rest, 'verify')
@@ -746,12 +815,13 @@ async function main([command, ...rest]) {
       profile,
     }).exitCode
   } else if (command === 'help' || command === '--help' || command === '-h') {
-    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|doctor [--json] [--remediation] [--legacy]|disable [--profile <name> | --profile-dir <directory>] [--apply]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
+    console.log('Usage: dsh-win32 [verify [--json] [--profile <name>]|preflight [--target <version|dist-tag>] [--profile <name>] [--json]|doctor [--json] [--remediation] [--legacy]|disable [--profile <name> | --profile-dir <directory>] [--apply]|setup [--verify] [--profile <name>] [--no-shortcut] [--sandboxed]|setup --legacy [--bash <path>] [--no-bundle] [--sandboxed [--busybox <path>]]|fix]')
     console.log('  verify  Live, model/API-free acceptance of an already-installed official DSH Windows component chain')
+    console.log('  preflight  Read-only check of whether a profile can move to a DSH version; exits 0 pass, 1 warnings, 2 blocked or unfinished')
     console.log('  setup --verify  Run setup, then the same component check once; nonzero exit on failure or unsupported runtime (not available with --legacy)')
     console.log('  disable [--profile <name> | --profile-dir <directory>] [--apply]  Preview offline legacy bundle deactivation; --apply backs up and updates only the activation list')
   } else {
-    console.error(`unknown command ${JSON.stringify(command)}. Run dsh-win32 help for setup, doctor, verify, disable and fix.`)
+    console.error(`unknown command ${JSON.stringify(command)}. Run dsh-win32 help for setup, doctor, preflight, verify, disable and fix.`)
     process.exit(1)
   }
 }

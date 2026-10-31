@@ -26,7 +26,7 @@ function directory(path: string): string {
   return realpathSync(path)
 }
 
-function profileDirectory({ home, profile, profileDir }: DisableOptions): string {
+export function profileDirectory({ home, profile, profileDir }: DisableOptions): string {
   if (profileDir !== undefined) {
     if (profile !== undefined) throw new Error('choose either --profile or --profile-dir')
     return directory(resolve(profileDir))
@@ -39,7 +39,7 @@ function profileDirectory({ home, profile, profileDir }: DisableOptions): string
   return directory(join(profiles, name))
 }
 
-function readManifest(path: string): Buffer {
+export function readManifest(path: string): Buffer {
   const stat = lstatSync(path)
   if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > MAX_BYTES) {
     throw new Error('refusing a linked, non-file, or oversized package.json')

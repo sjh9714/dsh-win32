@@ -63,6 +63,23 @@ npx dsh-win32 fix
 
 `fix` 只处理已知损坏或真实加载失败的 koffi 版本，修复后会再次执行加载验证。
 
+## 升级前先检查
+
+```powershell
+npx dsh-win32 preflight
+npx dsh-win32 preflight --target 0.2.2-alpha.2 --profile web
+npx dsh-win32 preflight --json
+```
+
+`preflight` 只回答一个问题：这个 profile 能否升级到目标 DSH 版本。它只读，也可以在 macOS 和 Linux 上运行。`--target` 接受 `@deepseek-ai/dsh` 的精确版本或 dist-tag，默认 `latest`。
+
+- **插件**：读取 profile 中的第三方插件（包括已停用的），并对目标版本套用 host 自身的规则。有 `engines.dsh` 时只看它，否则检查 DSH peer，预发布版本也参与判断。CI 会把结果与已安装的 `dsh-app-boot` 对比。`dsh plugin allow-version` 的豁免只有写明目标精确版本时才算数。
+- **Node**：使用目标版本的 `engines.node`。部分版本没有声明，此时回退到 `^22.19.0 || >=24` 并注明。
+- **Windows**：检查 PowerShell 7 是否存在，以及 `pwsh` 能否通过 PATH 解析。
+- **版本规则**：升级跨过已知行为变更（已保存的模型 ID、API Key 来源、SSH 协议）时给出警告。这些只是提醒，不会读取你的设置来确认是否受影响。
+
+退出码与 `doctor` 相同：0 全部通过，1 有警告，2 有失败。无法读取目标或 profile 也算失败，因此没有完成的检查不会显示为安全。遇到不兼容的插件时，它会查询该插件的最新版本；如果兼容就建议更新，否则建议保留当前 DSH。通过不代表升级一定成功：它只覆盖已声明的要求和已知变更，不会安装或启动目标版本。升级后请运行 `verify`。
+
 ## Windows 正常后，再搬现有配置
 
 [dsh-movein](https://github.com/sjh9714/dsh-movein) 可以预演搬入 Claude Code、Codex 或 OpenCode 配置。它是可选的另一项操作；dsh-win32 不会自动安装它。
