@@ -18,6 +18,11 @@ describe('official Windows acceptance policy', () => {
     expect(workflow).toContain('preflight judgments differ from the installed host')
   })
 
+  it('runs the preflight CLI against the installed stack', () => {
+    expect(workflow).toContain('node scripts/preflight-smoke.mjs')
+    expect(workflow).toContain('preflight CLI smoke failed')
+  })
+
   it('keeps the pnpm graph isolated and preserves the release-age gate', () => {
     for (const setting of [
       'nodeLinker: isolated',

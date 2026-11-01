@@ -121,7 +121,7 @@ npx dsh-win32 preflight --json
 - **Plugins.** It reads the third-party plugins in the profile, including disabled ones, and applies the host's own rule to the target: `engines.dsh` decides alone when present, otherwise the DSH peers must match, and prereleases count. CI compares this judgment with the installed `dsh-app-boot`. An exemption from `dsh plugin allow-version` counts only if it names the exact target.
 - **Node.** It uses the target's `engines.node`. Some releases declare none, so it then falls back to `^22.19.0 || >=24` and says so.
 - **Windows.** It checks that PowerShell 7 exists and that `pwsh` resolves through PATH.
-- **Release rules.** It warns when the upgrade crosses a known behavior change in saved model IDs, API key sources, or the SSH protocol. These are reminders. It does not read your settings to confirm that you are affected.
+- **Release rules.** It warns when the upgrade crosses a known behavior change in saved model IDs, API key sources, or the SSH protocol. These are reminders. It does not read your settings to confirm that you are affected. A target newer than the last release reviewed for these rules gets its own warning, because nothing has checked its changes.
 
 Exit codes follow `doctor`: 0 all pass, 1 any warning, 2 any failure. A target or profile it cannot read is a failure, so a preflight that could not finish never looks safe. For an incompatible plugin it looks up the plugin's newest release and suggests that version if it fits, or suggests staying on your installed DSH. A pass is not proof the upgrade will work. It covers declared requirements and known changes only, and it does not install or launch the target. Use `verify` after upgrading.
 

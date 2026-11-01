@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { runPreflight, unmetRequirements, type PreflightDependencies } from './preflight.ts'
+import { runPreflight, unmetRequirements, UPGRADE_GUIDE, type PreflightDependencies } from './preflight.ts'
 
 const DSH = '@deepseek-ai/dsh'
 // Requirements published by real plugins, so the fixtures replay real upgrades.
@@ -201,6 +201,18 @@ describe('runPreflight', () => {
     expect(check(report, 'saved_models')?.status).toBe('skip')
     expect(check(report, 'api_key_source')?.status).toBe('warn')
     expect(check(report, 'ssh_protocol')?.status).toBe('warn')
+  })
+
+  it('warns instead of passing when the target is newer than the reviewed release rules', () => {
+    const report = runPreflight({ home: profileHome({}), target: '0.2.2-alpha.3' }, deps({ meta: { version: '0.2.2-alpha.3' } }))
+    expect(check(report, 'release_notes')).toMatchObject({ status: 'warn', fix: expect.stringContaining(UPGRADE_GUIDE) })
+    expect(report).toMatchObject({ exitCode: 1, ok: true })
+  })
+
+  it('passes release_notes up to the reviewed release and skips it without a target', () => {
+    const reviewed = runPreflight({ home: profileHome({}), target: '0.2.2-alpha.2' }, deps({ meta: { version: '0.2.2-alpha.2' } }))
+    expect(check(reviewed, 'release_notes')?.status).toBe('pass')
+    expect(check(runPreflight({ home: profileHome({}), target: '>=1' }, deps()), 'release_notes')?.status).toBe('skip')
   })
 
   it('skips release rules but still judges plugins without an installed DSH', () => {
