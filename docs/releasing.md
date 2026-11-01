@@ -19,6 +19,10 @@ Maintainer procedure for publishing `dsh-win32` to npm. Every change to `master`
 7. Create the GitHub release with `gh release create vX.Y.Z --title vX.Y.Z --notes-file <file> --latest`.
 8. Confirm the registry shows the version with `npm view dsh-win32 dist-tags`. The registry can take a few minutes to update after `npm publish` reports success.
 
+## Preflight release rules
+
+After a new DSH release, read its release notes by hand and add a `RELEASE_RULES` entry in `src/preflight.ts` for each breaking change. Then raise `RULES_REVIEWED_THROUGH` to that version, even when no rule was added. Until then, `preflight` warns that the target is unchecked.
+
 ## Release notes
 
 Follow the shape of earlier releases.

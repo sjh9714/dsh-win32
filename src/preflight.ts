@@ -24,6 +24,8 @@ const RELEASE_RULES = [
   { name: 'api_key_source', since: '0.2.1-alpha.3', detail: 'Web and Desktop now prefer saved credentials, while headless reads environment variables and .env instead of saved keys' },
   { name: 'ssh_protocol', since: '0.2.2-alpha.2', detail: 'SSH protocol moved from 2 to 3, so self-deployed bootstraps and SSH helpers must be upgraded together' },
 ]
+/** Newest release whose notes were read for RELEASE_RULES. Raise it with each review (docs/releasing.md). */
+const RULES_REVIEWED_THROUGH = '0.2.2-alpha.2'
 
 export type PreflightStatus = 'pass' | 'warn' | 'fail' | 'skip'
 
@@ -282,6 +284,10 @@ export function runPreflight(options: PreflightOptions, deps: PreflightDependenc
     else if (semver.lt(installed, since) && semver.gte(target, since)) add(name, 'warn', `this upgrade crosses ${since}: ${detail}`)
     else add(name, 'skip', `this upgrade does not cross ${since}`)
   }
+  if (target === undefined) add('release_notes', 'skip', 'needs a resolved target')
+  else if (semver.gt(target, RULES_REVIEWED_THROUGH)) {
+    add('release_notes', 'warn', `release rules cover changes through ${RULES_REVIEWED_THROUGH}, so changes in ${target} are unchecked`, `read the upgrade guide first: ${UPGRADE_GUIDE}`)
+  } else add('release_notes', 'pass', `release rules cover changes through ${RULES_REVIEWED_THROUGH}`)
 
   const summary: Record<PreflightStatus, number> = { pass: 0, warn: 0, fail: 0, skip: 0 }
   for (const { status } of checks) summary[status] += 1
