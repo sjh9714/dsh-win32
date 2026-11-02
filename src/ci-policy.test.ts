@@ -23,6 +23,12 @@ describe('official Windows acceptance policy', () => {
     expect(workflow).toContain('preflight CLI smoke failed')
   })
 
+  it('flags a due release rule review on scheduled and manual runs, never on pull requests', () => {
+    const step = workflow.split('- name: preflight release rules cover the latest DSH')[1]?.split('\n\n')[0]
+    expect(step).toContain('--require-reviewed')
+    expect(step).toContain("if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.installer == 'pnpm-strict'")
+  })
+
   it('keeps the pnpm graph isolated and preserves the release-age gate', () => {
     for (const setting of [
       'nodeLinker: isolated',

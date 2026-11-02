@@ -213,6 +213,16 @@ jobs:
           node bin/cli.mjs setup --verify --profile acceptance --no-shortcut
           if ($LASTEXITCODE -ne 0) { throw "setup --verify failed with exit $LASTEXITCODE" }
           if (Test-Path $env:DSH_HOME) { throw 'setup verification unexpectedly wrote profile data' }
+      # Last, so a due review never hides the results above. This failure is
+      # the signal to review. Pull requests must not depend on upstream timing.
+      - name: preflight release rules cover the latest DSH
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && matrix.installer == 'pnpm-strict'
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
+          $official = Join-Path $env:RUNNER_TEMP "dsh-official"
+          node scripts/preflight-smoke.mjs (Join-Path $official "node_modules/@deepseek-ai/dsh/package.json") --require-reviewed
+          if ($LASTEXITCODE -ne 0) { throw 'preflight release rules need a review' }
 
   sandbox-experiment:
     if: github.event_name != 'schedule'

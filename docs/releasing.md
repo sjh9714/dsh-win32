@@ -23,6 +23,8 @@ Maintainer procedure for publishing `dsh-win32` to npm. Every change to `master`
 
 After a new DSH release, read its release notes by hand and add a `RELEASE_RULES` entry in `src/preflight.ts` for each breaking change. Then raise `RULES_REVIEWED_THROUGH` to that version, even when no rule was added. Until then, `preflight` warns that the target is unchecked.
 
+The weekly CI run fails at `preflight release rules cover the latest DSH` once `latest` passes `RULES_REVIEWED_THROUGH`. That failure is the signal to do this review. Pull request CI does not run this step.
+
 ## Release notes
 
 Follow the shape of earlier releases.
