@@ -9,7 +9,8 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const manifest = process.argv[2]
-if (manifest === undefined) throw new Error('usage: node scripts/preflight-smoke.mjs <installed dsh package.json>')
+if (manifest === undefined) throw new Error('usage: node scripts/preflight-smoke.mjs <installed dsh package.json> [--require-reviewed]')
+const requireReviewed = process.argv.includes('--require-reviewed')
 const installed = JSON.parse(readFileSync(manifest, 'utf8')).version
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), '../bin/cli.mjs')
 
@@ -47,6 +48,7 @@ try {
     status('powershell') !== (windows ? 'pass' : 'skip') && `powershell ${status('powershell')}`,
     status('path') !== (windows ? 'pass' : 'skip') && `path ${status('path')}`,
     JSON.stringify(snapshot(home)) !== JSON.stringify(before) && 'preflight changed the profile',
+    requireReviewed && status('release_notes') !== 'pass' && `release rules need a review for ${report.target.resolved}, see docs/releasing.md`,
   ].filter(Boolean)
   if (failures.length > 0) {
     console.error(run.stdout, run.stderr)
