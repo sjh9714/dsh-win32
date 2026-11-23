@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
   # Re-run the installed-stack acceptance against the registry's current
   # @deepseek-ai/dsh even when this repository has not changed. The scheduled
-  # event uses only Node 22.19, but keeps both npm and strict pnpm layouts.
+  # event uses only Node 24.9, but keeps both npm and strict pnpm layouts.
   schedule:
     - cron: '23 17 * * 0'
 
@@ -115,7 +115,7 @@ jobs:
       # Pushes, PRs, and manual runs retain the complete compatibility matrix.
       # The weekly upstream watch halves runner use by exercising the minimum
       # supported Node line only; both dependency layouts remain load-bearing.
-      matrix: ${{ fromJSON(github.event_name == 'schedule' && '{"node":["22.19.0"],"installer":["npm","pnpm-strict"]}' || '{"node":["22.19.0","24"],"installer":["npm","pnpm-strict"]}') }}
+      matrix: ${{ fromJSON(github.event_name == 'schedule' && '{"node":["24.9.0"],"installer":["npm","pnpm-strict"]}' || '{"node":["24.9.0","24"],"installer":["npm","pnpm-strict"]}') }}
     name: official live acceptance (${{ matrix.installer }}, Node ${{ matrix.node }})
     steps:
       - uses: actions/checkout@v7

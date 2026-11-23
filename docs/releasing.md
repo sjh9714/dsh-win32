@@ -15,7 +15,7 @@ Maintainer procedure for publishing `dsh-win32` to npm. Every change to `master`
 3. Run `npm ci`, `npm run build` and `npm test`. Check the contents with `npm pack --dry-run`.
 4. Open a PR titled `chore(release): X.Y.Z` and squash-merge it once `ci gate` passes.
 5. Pull `master`, tag the merge commit with `git tag vX.Y.Z` and push the tag.
-6. Run `npm publish`. The `prepublishOnly` script builds and tests again.
+6. Run `npm publish` in an interactive terminal. The `prepublishOnly` script builds and tests again. The account uses two-factor authentication, and npm offers browser authentication only on a TTY, so agent shells cannot publish. Open the printed link and authenticate in the browser.
 7. Create the GitHub release with `gh release create vX.Y.Z --title vX.Y.Z --notes-file <file> --latest`.
 8. Confirm the registry shows the version with `npm view dsh-win32 dist-tags`. The registry can take a few minutes to update after `npm publish` reports success.
 

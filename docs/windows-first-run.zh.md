@@ -16,7 +16,7 @@ pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 npx dsh-win32 doctor --json
 ```
 
-需要原生 Windows、PowerShell 7 和 Node 22.19+ 或 24+，不支持 Node 23。缺少前置软件时先按官方说明安装；dsh-win32 不负责安装 PowerShell、Git、WSL 或 DSH。
+需要原生 Windows、PowerShell 7 和所用 DSH 支持的 Node。当前 DSH（0.2.2 及以后）需要 Node 24.9+，旧版 DSH 也接受 Node 22.19+，不支持 Node 23。缺少前置软件时先按官方说明安装；dsh-win32 不负责安装 PowerShell、Git、WSL 或 DSH。
 
 `doctor` 会检查发布的 DSH Windows package contract，并定位已知本机问题。只看到官方 package metadata 正常，还不能判断某个缓存中的 launcher 真能启动。
 
