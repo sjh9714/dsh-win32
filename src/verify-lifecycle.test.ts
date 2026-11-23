@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   composeOfficialHarness,
   disposeOfficialHarness,
+  errorCode,
+  runPwshTool,
   type ResolvedInstalledTree,
 } from './verify.ts'
 
-function fixture(register: () => unknown = () => () => {}, workingDirectory = false) {
+function fixture(register: () => unknown = () => () => {}, workingDirectory = false, executor: { selects: boolean, declared: boolean } = { selects: false, declared: false }) {
   const disposeContext = vi.fn(async () => {})
   const registrationStarted = Promise.withResolvers<void>()
   const registerAgent = vi.fn(() => {
@@ -15,18 +17,20 @@ function fixture(register: () => unknown = () => () => {}, workingDirectory = fa
   const mounted = new Map<string, unknown>()
   const fsPlugin = { name: 'fixture-fs-sandbox' }
   const cwdPlugin = { name: 'fixture-working-directory' }
+  const executorModule = { name: 'native-tool-executor', apply: () => {} }
   class Context {
     fiber = { dispose: disposeContext }
     agents = { register: registerAgent }
     plugin = (plugin: unknown, config?: unknown) => {
       if (plugin === fsPlugin) mounted.set('fs', config)
+      if (plugin === executorModule) mounted.set('executor', true)
       if (plugin === cwdPlugin) {
         if (!mounted.has('fs')) throw new Error('filesystem must precede working directory')
         mounted.set('workingDirectory', config)
       }
       return { ctx: this }
     }
-    get = (name: string) => name === 'workingDirectory' ? mounted.get(name) : {}
+    get = (name: string) => name === 'workingDirectory' ? mounted.get(name) : name === 'tools' && executor.selects ? { setExecutor: () => {} } : {}
   }
   const load = async (name: string) => {
     if (name === '@deepseek-ai/cordis') return { Context }
@@ -35,6 +39,7 @@ function fixture(register: () => unknown = () => () => {}, workingDirectory = fa
     }
     if (name === '@deepseek-ai/dsh-fs-sandbox') return { default: fsPlugin }
     if (name === '@deepseek-ai/dsh-working-directory') return { default: cwdPlugin }
+    if (name === '@deepseek-ai/dsh-tool-executor-native') return executorModule
     return { default: {}, TerminalSessionService: {} }
   }
   return {
@@ -43,12 +48,42 @@ function fixture(register: () => unknown = () => () => {}, workingDirectory = fa
     registrationStarted: registrationStarted.promise,
     mounted,
     compose: () => composeOfficialHarness({
-      components: workingDirectory ? { '@deepseek-ai/dsh-working-directory': {} } : {},
+      components: {
+        ...workingDirectory ? { '@deepseek-ai/dsh-working-directory': {} } : {},
+        ...executor.declared ? { '@deepseek-ai/dsh-tool-executor-native': {} } : {},
+      },
     } as ResolvedInstalledTree, load),
   }
 }
 
 describe('official verifier harness lifecycle', () => {
+  it('mounts the declared native executor when the tools service selects executors', async () => {
+    const installed = fixture(undefined, false, { selects: true, declared: true })
+    vi.stubEnv('DSH_WIN32_VERIFY_WORKSPACE', 'fixture-workspace')
+    try {
+      const harness = await installed.compose()
+      expect(installed.mounted.get('executor')).toBe(true)
+      await disposeOfficialHarness(harness)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it.each([
+    { selects: true, declared: false },
+    { selects: false, declared: true },
+  ])('fails composition when executor selection and declaration disagree (%o)', async (executor) => {
+    const installed = fixture(undefined, false, executor)
+    vi.stubEnv('DSH_WIN32_VERIFY_WORKSPACE', 'fixture-workspace')
+    try {
+      await expect(installed.compose()).rejects.toThrow('official_components')
+      expect(installed.mounted.has('executor')).toBe(false)
+      expect(installed.disposeContext).toHaveBeenCalledOnce()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('mounts the declared working-directory service over the sandbox filesystem at the isolated workspace', async () => {
     const installed = fixture(undefined, true)
     vi.stubEnv('DSH_WIN32_VERIFY_WORKSPACE', '/isolated/workspace')
@@ -197,5 +232,41 @@ describe('official verifier harness lifecycle', () => {
       stalled.resolve()
       vi.useRealTimers()
     }
+  })
+})
+
+describe('pwsh tool dispatch', () => {
+  it('keeps the single-call contract for tools services without executors', async () => {
+    const execute = vi.fn(async () => ({ isError: false, value: 'ok' }))
+    const signal = new AbortController().signal
+    const result = await runPwshTool({ tools: { execute } }, 'agent', 'Get-Date', signal)
+    expect(result).toEqual({ isError: false, value: 'ok' })
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({ name: 'pwsh', arguments: { command: 'Get-Date' }, agent: 'agent', signal }))
+  })
+
+  it('sends one raw model call through executor batches and returns its own result', async () => {
+    const execute = vi.fn(async (input: any) => ({
+      results: [{ callId: 'other', result: { isError: true } }, { callId: input.calls[0].id, result: { isError: false, value: 'ok' } }],
+      additionalContexts: [],
+      concluded: false,
+    }))
+    const signal = new AbortController().signal
+    const result = await runPwshTool({ tools: { execute, setExecutor: () => {} } }, 'agent', 'Get-Date', signal)
+    expect(result).toEqual({ isError: false, value: 'ok' })
+    const input = execute.mock.calls[0]![0]
+    expect(input).toMatchObject({ agent: 'agent', signal, calls: [{ type: 'tool-call', name: 'pwsh' }] })
+    expect(JSON.parse(input.calls[0].arguments)).toEqual({ command: 'Get-Date' })
+  })
+
+  it('rejects a batch that omits the call', async () => {
+    const tools = { setExecutor: () => {}, execute: async () => ({ results: [], additionalContexts: [], concluded: false }) }
+    await expect(runPwshTool({ tools }, 'agent', 'Get-Date', new AbortController().signal)).rejects.toThrow('omitted')
+  })
+
+  it('reports only identifier-shaped upstream error codes', () => {
+    expect(errorCode({ code: 'TOOL_EXECUTOR_UNAVAILABLE' })).toBe('TOOL_EXECUTOR_UNAVAILABLE')
+    expect(errorCode({ code: 'C:\\Users\\me' })).toBeUndefined()
+    expect(errorCode({ code: 42 })).toBeUndefined()
+    expect(errorCode(undefined)).toBeUndefined()
   })
 })

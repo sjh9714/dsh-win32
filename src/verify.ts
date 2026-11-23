@@ -119,8 +119,11 @@ const WORKING_DIRECTORY_COMPONENTS = [
   '@deepseek-ai/dsh-fs-local',
 ] as const
 type RequiredLiveComponent = typeof DSH_DIRECT_COMPONENTS[number] | typeof BASE_COMPONENTS[number]
+/** DSH 0.2.2 dispatches tool calls only through an executor selected in the composition. */
+const TOOL_EXECUTOR_COMPONENT = '@deepseek-ai/dsh-tool-executor-native'
 type WorkingDirectoryComponent = typeof WORKING_DIRECTORY_COMPONENTS[number]
-type LiveComponent = RequiredLiveComponent | WorkingDirectoryComponent
+type OptionalLiveComponent = WorkingDirectoryComponent | typeof TOOL_EXECUTOR_COMPONENT
+type LiveComponent = RequiredLiveComponent | OptionalLiveComponent
 
 function unsupported(reason: string): VerifyReport {
   return { schema: 'dsh-win32/verify/v1', status: 'unsupported', ok: false, boundary: BOUNDARY, checks: [], reason }
@@ -260,7 +263,7 @@ export interface ResolvedInstalledTree {
   selectedManifestPath: string
   selectedVersion: string
   components: Record<RequiredLiveComponent, ResolvedInstalledComponent>
-    & Partial<Record<WorkingDirectoryComponent, ResolvedInstalledComponent>>
+    & Partial<Record<OptionalLiveComponent, ResolvedInstalledComponent>>
 }
 
 function canonicalBoundaryFor(manifestPath: string): string {
@@ -341,6 +344,9 @@ export function resolveInstalledTree(selectedPackageJson: string): ResolvedInsta
     ...BASE_COMPONENTS.map(name => resolveOwnedComponent(base, '@deepseek-ai/dsh-base', name, boundary, true)),
     ...(declaredBy(base, '@deepseek-ai/dsh-working-directory', false)
       ? WORKING_DIRECTORY_COMPONENTS.map(name => resolveOwnedComponent(base, '@deepseek-ai/dsh-base', name, boundary, false))
+      : []),
+    ...(declaredBy(base, TOOL_EXECUTOR_COMPONENT, false)
+      ? [resolveOwnedComponent(base, '@deepseek-ai/dsh-base', TOOL_EXECUTOR_COMPONENT, boundary, false)]
       : []),
   ]
   const components = Object.fromEntries(entries.map(component => [component.name, component])) as ResolvedInstalledTree['components']
@@ -788,6 +794,13 @@ export async function composeOfficialHarness(
     if (ctx.get('systemPrompt') === undefined || ctx.get('tools') === undefined) {
       throw new Error('stock tools/systemPrompt services did not activate')
     }
+    // A tools service that selects executors cannot run a call without one.
+    // Mount the stock native executor from the selected base, never our own.
+    const selectsExecutor = typeof ctx.get('tools').setExecutor === 'function'
+    if (selectsExecutor !== (tree.components[TOOL_EXECUTOR_COMPONENT] !== undefined)) {
+      throw new Error('the tools service and the declared native executor disagree')
+    }
+    if (selectsExecutor) await ctx.plugin(await load(TOOL_EXECUTOR_COMPONENT))
     // Newer stock hosts require this service before persistent pwsh can mount.
     // Resolve it only through the selected base, never from our legacy peers.
     if (tree.components['@deepseek-ai/dsh-working-directory'] !== undefined) {
@@ -858,15 +871,34 @@ export async function disposeOfficialHarness(harness: TerminalHarness): Promise<
 
 let nextCallId = 0
 
-async function executePwsh(ctx: any, agent: any, command: string, signal = new AbortController().signal): Promise<string> {
-  const result: any = await withTimeout(ctx.tools.execute({
-    callId: `dsh-win32-verify-${++nextCallId}`,
-    name: 'pwsh',
-    arguments: { command },
-    agent,
+/** Upstream error codes are fixed identifiers, so they can enter the path-free report. */
+export function errorCode(error: unknown): string | undefined {
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined
+  return typeof code === 'string' && /^[A-Z][A-Z0-9_]{2,63}$/.test(code) ? code : undefined
+}
+
+/** One model-facing pwsh call through either tools dispatch contract. */
+export async function runPwshTool(ctx: any, agent: any, command: string, signal: AbortSignal): Promise<any> {
+  const callId = `dsh-win32-verify-${++nextCallId}`
+  if (typeof ctx.tools.setExecutor !== 'function') {
+    return ctx.tools.execute({ callId, name: 'pwsh', arguments: { command }, agent, signal })
+  }
+  // DSH 0.2.2 takes raw model-call batches and settles them through the executor.
+  const batch: any = await ctx.tools.execute({
+    calls: [{ type: 'tool-call', id: callId, name: 'pwsh', arguments: JSON.stringify({ command }) }],
     signal,
-  }), 40_000)
-  if (result.isError || typeof result.value !== 'string') throw new Error('persistent pwsh tool failed')
+    agent,
+  })
+  const settled = batch?.results?.find((entry: any) => entry.callId === callId)
+  if (settled === undefined) throw new Error('tool batch omitted the call')
+  return settled.result
+}
+
+async function executePwsh(ctx: any, agent: any, command: string, signal = new AbortController().signal): Promise<string> {
+  const result: any = await withTimeout(runPwshTool(ctx, agent, command, signal), 40_000)
+  if (result.isError || typeof result.value !== 'string') {
+    throw Object.assign(new Error('persistent pwsh tool failed'), { code: errorCode(result.error) })
+  }
   return result.value
 }
 
@@ -876,13 +908,7 @@ async function expectToolMarker(ctx: any, agent: any, command: string, marker: s
 
 async function cancelTool(ctx: any, agent: any): Promise<void> {
   const controller = new AbortController()
-  const running = ctx.tools.execute({
-    callId: `dsh-win32-verify-${++nextCallId}`,
-    name: 'pwsh',
-    arguments: { command: "Start-Sleep -Seconds 30; [Console]::WriteLine(('DSH_VERIFY_' + 'CANCEL_NOT_DELIVERED'))" },
-    agent,
-    signal: controller.signal,
-  })
+  const running = runPwshTool(ctx, agent, "Start-Sleep -Seconds 30; [Console]::WriteLine(('DSH_VERIFY_' + 'CANCEL_NOT_DELIVERED'))", controller.signal)
   await new Promise(resolve => setTimeout(resolve, 700))
   controller.abort(new Error('dsh-win32 verification cancellation'))
   const result: any = await withTimeout(running, 20_000)
@@ -947,8 +973,9 @@ export async function runVerifyWorker(): Promise<VerifyReport> {
       try {
         await operation()
         pass(name, detail)
-      } catch {
-        throw new CheckFailure(name, `${name} did not satisfy its live acceptance condition`)
+      } catch (error) {
+        const code = errorCode(error)
+        throw new CheckFailure(name, `${name} did not satisfy its live acceptance condition${code === undefined ? '' : ` (${code})`}`)
       }
     }
 
