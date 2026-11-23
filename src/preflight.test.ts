@@ -203,8 +203,21 @@ describe('runPreflight', () => {
     expect(check(report, 'ssh_protocol')?.status).toBe('warn')
   })
 
+  it('warns for each 0.2.2 change an upgrade from 0.2.1-rc.5 to 0.2.2-rc.5 crosses', () => {
+    const report = runPreflight({ home: profileHome({}), target: '0.2.2-rc.5' }, deps({ meta: { version: '0.2.2-rc.5' }, installedVersion: () => '0.2.1-rc.5' }))
+    for (const name of ['ssh_protocol', 'worktree_plugin', 'tool_execution', 'web_search', 'worktree_cleanup', 'windows_extra_directories', 'shared_session_storage']) {
+      expect(check(report, name)?.status).toBe('warn')
+    }
+    expect(check(report, 'api_key_source')?.status).toBe('skip')
+  })
+
+  it('stays quiet about 0.2.2 changes between two 0.2.2-rc.2 or newer releases', () => {
+    const report = runPreflight({ home: profileHome({}), target: '0.2.2-rc.5' }, deps({ meta: { version: '0.2.2-rc.5' }, installedVersion: () => '0.2.2-rc.2' }))
+    expect(check(report, 'windows_extra_directories')?.status).toBe('skip')
+  })
+
   it('warns instead of passing when the target is newer than the reviewed release rules', () => {
-    const report = runPreflight({ home: profileHome({}), target: '0.2.2-alpha.3' }, deps({ meta: { version: '0.2.2-alpha.3' } }))
+    const report = runPreflight({ home: profileHome({}), target: '0.2.3-alpha.1' }, deps({ meta: { version: '0.2.3-alpha.1' } }))
     expect(check(report, 'release_notes')).toMatchObject({ status: 'warn', fix: expect.stringContaining(UPGRADE_GUIDE) })
     expect(report).toMatchObject({ exitCode: 1, ok: true })
   })
@@ -212,6 +225,8 @@ describe('runPreflight', () => {
   it('passes release_notes up to the reviewed release and skips it without a target', () => {
     const reviewed = runPreflight({ home: profileHome({}), target: '0.2.2-alpha.2' }, deps({ meta: { version: '0.2.2-alpha.2' } }))
     expect(check(reviewed, 'release_notes')?.status).toBe('pass')
+    const newest = runPreflight({ home: profileHome({}), target: '0.2.2-rc.5' }, deps({ meta: { version: '0.2.2-rc.5' } }))
+    expect(check(newest, 'release_notes')?.status).toBe('pass')
     expect(check(runPreflight({ home: profileHome({}), target: '>=1' }, deps()), 'release_notes')?.status).toBe('skip')
   })
 

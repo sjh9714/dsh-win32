@@ -207,6 +207,21 @@ describe('verify isolation orchestration with fakes', () => {
     }
   })
 
+  it('resolves the native tool executor only from its declared base owner', () => {
+    const root = mkdtempSync(join(tmpdir(), 'dsh-win32-tool-executor-'))
+    try {
+      const selected = writeInstalledTree(root)
+      expect(resolveInstalledTree(selected).components['@deepseek-ai/dsh-tool-executor-native']).toBeUndefined()
+      writePackage(root, '@deepseek-ai/dsh-base', {
+        dependencies: Object.fromEntries([...baseComponents, '@deepseek-ai/dsh-tool-executor-native'].map(name => [name, '1.0.0'])),
+      })
+      writePackage(root, '@deepseek-ai/dsh-tool-executor-native')
+      expect(resolveInstalledTree(selected).components['@deepseek-ai/dsh-tool-executor-native']?.owner).toBe('@deepseek-ai/dsh-base')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('does not silently omit a declared working-directory service when its filesystem dependency is missing', () => {
     const root = mkdtempSync(join(tmpdir(), 'dsh-win32-working-directory-missing-'))
     try {
