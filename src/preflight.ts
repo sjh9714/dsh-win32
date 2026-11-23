@@ -23,9 +23,15 @@ const RELEASE_RULES = [
   { name: 'saved_models', since: '0.2.0-rc.2', detail: 'some older model IDs were removed, so saved selections may need to be reselected' },
   { name: 'api_key_source', since: '0.2.1-alpha.3', detail: 'Web and Desktop now prefer saved credentials, while headless reads environment variables and .env instead of saved keys' },
   { name: 'ssh_protocol', since: '0.2.2-alpha.2', detail: 'SSH protocol moved from 2 to 3, so self-deployed bootstraps and SSH helpers must be upgraded together' },
+  { name: 'worktree_plugin', since: '0.2.2-alpha.3', detail: 'the standalone worktree plugin merged into change requests, so remove @deepseek-ai/dsh-experimental-tool-worktree from dsh.profile.bundles if you enabled it' },
+  { name: 'tool_execution', since: '0.2.2-rc.1', detail: 'native and PTC tool execution became separate plugins, so tools.mode, DSH_TOOLS_MODE and plugins using tools.resolve or tools.executable need migration' },
+  { name: 'web_search', since: '0.2.2-rc.2', detail: 'web search now defaults to the DeepSeek Search API, so older providers and custom search settings need migration' },
+  { name: 'worktree_cleanup', since: '0.2.2-rc.2', detail: 'archiving a session now removes its eligible Git worktree directories by default while keeping branches and commits' },
+  { name: 'windows_extra_directories', since: '0.2.2-rc.2', detail: 'on Windows, extra-directory grants now cover file tools only, not the terminal or PTC' },
+  { name: 'shared_session_storage', since: '0.2.2-rc.2', detail: 'AgentTeam changed its session format, so every process sharing the same session storage must be upgraded together' },
 ]
 /** Newest release whose notes were read for RELEASE_RULES. Raise it with each review (docs/releasing.md). */
-const RULES_REVIEWED_THROUGH = '0.2.2-alpha.2'
+const RULES_REVIEWED_THROUGH = '0.2.2-rc.5'
 
 export type PreflightStatus = 'pass' | 'warn' | 'fail' | 'skip'
 
