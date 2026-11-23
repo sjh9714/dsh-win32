@@ -14,7 +14,7 @@ pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
 npx dsh-win32 doctor --json
 ```
 
-Use PowerShell 7 and DSH-supported Node 22.19+ or 24+; Node 23 is unsupported. Install missing prerequisites using their official instructions. Record the actual installed DSH identity when several launchers are present.
+Use PowerShell 7 and a Node version your DSH supports. Current DSH (0.2.2 and later) requires Node 24.9+, older DSH also accepts Node 22.19+, and Node 23 is unsupported. Install missing prerequisites using their official instructions. Record the actual installed DSH identity when several launchers are present.
 
 If the diagnosis identifies a known broken koffi version or a real koffi load failure, review the affected installation before running:
 

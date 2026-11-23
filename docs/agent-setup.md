@@ -9,7 +9,8 @@ Help me set up current DeepSeek Harness on native Windows with dsh-win32.
 Read https://github.com/sjh9714/dsh-win32 before running commands.
 
 1. Check the OS, Node version, PowerShell 7, installed DSH identity, and intended
-   profile. Node 22.19+ or 24+ is required; Node 23 is unsupported. On another OS,
+   profile. Current DSH (0.2.2 and later) requires Node 24.9+. Older DSH also
+   accepts Node 22.19+. Node 23 is unsupported. On another OS,
    stop. If prerequisites are missing, explain the official installation steps
    and ask before installing or upgrading anything.
 2. Preserve existing profiles, presets, credentials, and package-manager policy.
@@ -46,7 +47,7 @@ Once Windows is working, [Movein's separate migration request](https://github.co
 先阅读 https://github.com/sjh9714/dsh-win32 。
 
 1. 确认 Windows、Node、PowerShell 7、已安装 DSH 的版本和目标 profile。
-   需要 Node 22.19+ 或 24+，不支持 Node 23；不是 Windows 就停止。
+   当前 DSH（0.2.2 及以后）需要 Node 24.9+，旧版 DSH 也接受 Node 22.19+，不支持 Node 23；不是 Windows 就停止。
    缺少前置软件时，说明官方安装办法，先询问再安装或升级。
 2. 保留现有 profile、预设、凭据和包管理器政策；不要自动选 --legacy、
    关闭 Workspace Write 或修改全局设置。
